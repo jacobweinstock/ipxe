@@ -27,6 +27,7 @@ func IpxeBin() *ffcli.Command {
 	fs.StringVar(&cfg.HTTPAddr, "http-addr", "0.0.0.0:8080", "IP and port to listen on for HTTP.")
 
 	return &ffcli.Command{
+		Name:       "ipxe-bin",
 		ShortUsage: "ipxe-bin",
 		FlagSet:    fs,
 		Exec: func(ctx context.Context, _ []string) error {
