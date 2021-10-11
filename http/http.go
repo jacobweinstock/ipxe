@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"path/filepath"
 
 	"github.com/go-logr/logr"
 	"github.com/jacobweinstock/ipxe-bin/backend"
@@ -45,6 +46,7 @@ func ListenAndServe(ctx context.Context, l logr.Logger, b backend.Reader, addr s
 func (s server) serveFile(w http.ResponseWriter, req *http.Request) {
 	got := req.URL.Path
 	fmt.Println("url path:", got)
+	got = filepath.Base(got)
 	file, found := bin.Files[got]
 	if !found {
 		http.Error(w, "we dont serve that file", http.StatusNotFound)
