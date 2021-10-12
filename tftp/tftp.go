@@ -84,7 +84,14 @@ func (t tftpHandler) ReadFile(c tftpgo.Conn, filename string) (tftpgo.ReadCloser
 	// 2. the network.interfaces[].netboot.allow_pxe value, in the tink server hardware record, equal to true
 	// This allows serving custom ipxe scripts, starting up into OSIE or other installation environments
 	// without a tink workflow present.
-	if !t.backend.Allowed(ctx, ip) {
+	allowed, err := t.backend.Allowed(ctx, ip)
+	if err != nil {
+		l.V(0).Error(err, "failed to determine if client is allowed to boot")
+		span.SetStatus(codes.Error, "failed to determine if client is allowed to boot: "+err.Error())
+		span.End()
+		return serveFakeReader(l, filename)
+	}
+	if !allowed {
 		l.Info("the hardware data for this machine, or lack there of, does not allow it to pxe; allow_pxe: false")
 		span.SetStatus(codes.Error, "allow_pxe is false")
 		span.End()

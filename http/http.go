@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"path/filepath"
 
@@ -12,13 +13,17 @@ import (
 )
 
 type server struct {
+	backend backend.Reader
+	log     logr.Logger
 }
 
 func ListenAndServe(ctx context.Context, l logr.Logger, b backend.Reader, addr string) error {
 	router := http.NewServeMux()
-	router.HandleFunc("/undionly.kpxe", server{}.serveFile)
-	router.HandleFunc("/ipxe.efi", server{}.serveFile)
-	router.HandleFunc("/snp.efi", server{}.serveFile)
+	s := server{backend: b, log: l}
+	l.V(0).Info("serving http", "addr", addr)
+	router.HandleFunc("/undionly.kpxe", s.serveFile)
+	router.HandleFunc("/ipxe.efi", s.serveFile)
+	router.HandleFunc("/snp.efi", s.serveFile)
 	srv := http.Server{
 		Addr:    addr,
 		Handler: router,
@@ -35,22 +40,29 @@ func ListenAndServe(ctx context.Context, l logr.Logger, b backend.Reader, addr s
 	select {
 	case <-ctx.Done():
 		err = srv.Shutdown(ctx)
-		fmt.Println("1")
 	case e := <-errChan:
-		fmt.Println("2")
 		err = e
 	}
 	return err
 }
 
 func (s server) serveFile(w http.ResponseWriter, req *http.Request) {
-	got := req.URL.Path
-	fmt.Println("url path:", got)
-	got = filepath.Base(got)
-	file, found := bin.Files[got]
-	if !found {
-		http.Error(w, "we dont serve that file", http.StatusNotFound)
+	host, _, err := net.SplitHostPort(req.RemoteAddr)
+	if err != nil {
+		s.log.V(0).Error(fmt.Errorf("%s: not allowed", req.RemoteAddr), "could not get you IP address")
+	}
+	allowed, err := s.backend.Allowed(context.TODO(), net.ParseIP(host))
+	if err != nil {
+		http.Error(w, "error talking with backend", http.StatusInternalServerError)
+		s.log.V(0).Error(err, "error talking with backend")
 		return
 	}
+	if !allowed {
+		http.Error(w, "not allowed", http.StatusForbidden)
+		s.log.V(0).Error(fmt.Errorf("%s: not allowed", req.RemoteAddr), "reported as not allowed")
+		return
+	}
+	got := filepath.Base(req.URL.Path)
+	file := bin.Files[got]
 	w.Write(file)
 }
