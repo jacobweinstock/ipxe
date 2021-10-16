@@ -9,9 +9,9 @@ import (
 	"github.com/jacobweinstock/ipxe/backend"
 	"github.com/jacobweinstock/ipxe/http"
 	"github.com/jacobweinstock/ipxe/tftp"
-	"github.com/tinkerbell/tink/protos/hardware"
 	"github.com/peterbourgon/ff/v3/ffcli"
 	"github.com/pkg/errors"
+	"github.com/tinkerbell/tink/protos/hardware"
 	"golang.org/x/sync/errgroup"
 )
 

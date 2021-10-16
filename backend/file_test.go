@@ -91,10 +91,9 @@ func TestAllowed(t *testing.T) {
 				if cmp.Diff(tc.err.Error(), err.Error()) != "" {
 					t.Fatalf("expected err: %v, got: %v", tc.err, err)
 				}
-			} else {
-				if cmp.Diff(got, tc.allowed) != "" {
-					t.Fatalf("got %v, want %v", got, tc.allowed)
-				}
+			}
+			if cmp.Diff(got, tc.allowed) != "" {
+				t.Fatalf("got %v, want %v", got, tc.allowed)
 			}
 		})
 	}
