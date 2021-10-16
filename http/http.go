@@ -21,9 +21,9 @@ func ListenAndServe(ctx context.Context, l logr.Logger, b backend.Reader, addr s
 	router := http.NewServeMux()
 	s := server{backend: b, log: l}
 	l.V(0).Info("serving http", "addr", addr)
-	router.HandleFunc("/undionly.kpxe", s.serveFile)
-	router.HandleFunc("/ipxe.efi", s.serveFile)
-	router.HandleFunc("/snp.efi", s.serveFile)
+	for name := range binary.Files {
+		router.HandleFunc(fmt.Sprintf("/%s", name), s.serveFile)
+	}
 	srv := http.Server{
 		Addr:    addr,
 		Handler: router,
