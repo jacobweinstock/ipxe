@@ -35,7 +35,7 @@ type Tinkerbell struct {
 func (t Tinkerbell) Mac(ctx context.Context, ip net.IP) (net.HardwareAddr, error) {
 	hw, err := t.Client.ByIP(ctx, &hardware.GetRequest{Ip: ip.String()})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get hardware info: %v", err)
+		return nil, fmt.Errorf("failed to get hardware info: %w", err)
 	}
 	for _, elem := range hw.GetNetwork().GetInterfaces() {
 		if net.ParseIP(elem.GetDhcp().GetIp().GetAddress()).Equal(ip) {
@@ -76,12 +76,12 @@ func (t Tinkerbell) Allowed(ctx context.Context, ip net.IP) (bool, error) {
 // setupClient is a small control loop to create a tink server client.
 // it keeps trying so that if the problem is temporary or can be resolved and the
 // this doesn't stop and need to be restarted by an outside process or person.
-func SetupClient(ctx context.Context, log logr.Logger, tls string, tink string) (*grpc.ClientConn, error) {
+func SetupClient(ctx context.Context, log logr.Logger, tlsVal string, tink string) (*grpc.ClientConn, error) {
 	if tink == "" {
 		return nil, errors.New("tink server address is required")
 	}
 	// setup tink server grpc client
-	dialOpt, err := LoadTLSFromValue(tls)
+	dialOpt, err := grpcTLS(tlsVal)
 	if err != nil {
 		log.V(0).Error(err, "unable to create gRPC client TLS dial option")
 		return nil, err
@@ -96,7 +96,7 @@ func SetupClient(ctx context.Context, log logr.Logger, tls string, tink string) 
 	return grpcClient, nil
 }
 
-// toCreds takes a byte string, assumed to be a tls cert, and creates a transport credential
+// toCreds takes a byte string, assumed to be a tls cert, and creates a transport credential.
 func toCreds(pemCerts []byte) credentials.TransportCredentials {
 	cp := x509.NewCertPool()
 	ok := cp.AppendCertsFromPEM(pemCerts)
@@ -115,8 +115,8 @@ func toCreds(pemCerts []byte) credentials.TransportCredentials {
 
 // loadTLSFromHTTP handles reading a cert from an HTTP endpoint and forming a TLS grpc.DialOption
 
-// LoadTLSFromValue is the logic for how/from where TLS should be loaded
-func LoadTLSFromValue(tlsVal string) (grpc.DialOption, error) {
+// grpcTLS is the logic for how/from where TLS should be loaded.
+func grpcTLS(tlsVal string) (grpc.DialOption, error) {
 	u, err := url.Parse(tlsVal)
 	if err != nil {
 		return nil, errors.Wrap(err, "must be file://, http://, or string boolean")
@@ -145,7 +145,7 @@ func LoadTLSFromValue(tlsVal string) (grpc.DialOption, error) {
 		return grpc.WithTransportCredentials(toCreds(data)), nil
 	case schemeHTTP, schemeHTTPS:
 		// 4. the server has a self-signed cert and the cert needs to be grabbed from a URL -
-		resp, err := http.Get(tlsVal) // nolint
+		resp, err := http.NewRequestWithContext(context.Background(), "GET", tlsVal, http.NoBody)
 		if err != nil {
 			return nil, err
 		}

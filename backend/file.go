@@ -13,10 +13,10 @@ import (
 
 type File struct {
 	Filename string
-	db       []hardware.Hardware
+	db       []*hardware.Hardware
 }
 
-func (f File) Mac(ctx context.Context, ip net.IP) (net.HardwareAddr, error) {
+func (f File) Mac(_ context.Context, ip net.IP) (net.HardwareAddr, error) {
 	for _, v := range f.db {
 		for _, hip := range v.Network.Interfaces {
 			if net.ParseIP(hip.Dhcp.Ip.Address).Equal(ip) {
@@ -27,7 +27,7 @@ func (f File) Mac(ctx context.Context, ip net.IP) (net.HardwareAddr, error) {
 	return nil, fmt.Errorf("not found")
 }
 
-func (f File) Allowed(ctx context.Context, ip net.IP) (bool, error) {
+func (f File) Allowed(_ context.Context, ip net.IP) (bool, error) {
 	for _, v := range f.db {
 		for _, hip := range v.Network.Interfaces {
 			if net.ParseIP(hip.Dhcp.Ip.Address).Equal(ip) {
@@ -43,14 +43,13 @@ func NewFile(f string) (*File, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "could not read file %q", f)
 	}
-	dsDb := []hardware.Hardware{}
-	err = json.Unmarshal(saData, &dsDb)
-	if err != nil {
+	dsDB := []*hardware.Hardware{}
+	if err := json.Unmarshal(saData, &dsDB); err != nil {
 		return nil, errors.Wrapf(err, "unable to parse configuration file %q", f)
 	}
 
 	return &File{
 		Filename: f,
-		db:       dsDb,
+		db:       dsDB,
 	}, nil
 }

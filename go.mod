@@ -5,6 +5,7 @@ go 1.16
 require (
 	github.com/go-logr/logr v1.1.0
 	github.com/go-logr/zapr v1.1.0
+	github.com/google/go-cmp v0.5.6
 	github.com/peterbourgon/ff/v3 v3.1.2
 	github.com/pkg/errors v0.9.1
 	github.com/tinkerbell/tftp-go v0.0.0-20211001160938-0e6da462693b

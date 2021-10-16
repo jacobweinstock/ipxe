@@ -52,11 +52,7 @@ func tink() *ffcli.Command {
 				return err
 			}
 			c := hardware.NewHardwareServiceClient(gc)
-			/*if _, err := c.ByIP(ctx, &hardware.GetRequest{}); err != nil {
-				return fmt.Errorf("unable to communicate with tink server: %v", cfg.Tink)
-			}*/
 			g.Go(func() error {
-				
 				return tftp.ServeTFTP(ctx, cfg.Log, &backend.Tinkerbell{Client: c, Log: cfg.Log}, cfg.TFTPAddr)
 			})
 

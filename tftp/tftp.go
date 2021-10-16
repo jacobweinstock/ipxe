@@ -26,13 +26,21 @@ type tftpHandler struct {
 	backend backend.Reader
 }
 
-// ServeTFTP is a useless comment
+// ServeTFTP listens on the given address and serves TFTP requests.
 func ServeTFTP(ctx context.Context, l logr.Logger, b backend.Reader, addr string) error {
-	go tftpgo.ListenAndServe(addr, tftpHandler{log: l, backend: b})
-	<-ctx.Done()
-	return nil
+	errChan := make(chan error)
+	go func() {
+		errChan <- tftpgo.ListenAndServe(addr, tftpHandler{l, b})
+	}()
+	select {
+	case err := <-errChan:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
+// Read implements the tftpgo.ReadCloser interface.
 func (t tftpHandler) ReadFile(c tftpgo.Conn, filename string) (tftpgo.ReadCloser, error) {
 	/*
 		labels := prometheus.Labels{"from": "tftp", "op": "read"}
@@ -115,30 +123,29 @@ func extractTraceparentFromFilename(ctx context.Context, filename string) (conte
 	traceparentRe := regexp.MustCompile("^(.*)-[[:xdigit:]]{2}-([[:xdigit:]]{32})-([[:xdigit:]]{16})-([[:xdigit:]]{2})")
 	parts := traceparentRe.FindStringSubmatch(filename)
 	if len(parts) == 5 {
-		traceId, err := trace.TraceIDFromHex(parts[2])
+		traceID, err := trace.TraceIDFromHex(parts[2])
 		if err != nil {
-			return ctx, filename, fmt.Errorf("parsing OpenTelemetry trace id %q failed: %s", parts[2], err)
+			return ctx, filename, fmt.Errorf("parsing OpenTelemetry trace id %q failed: %w", parts[2], err)
 		}
 
-		spanId, err := trace.SpanIDFromHex(parts[3])
+		spanID, err := trace.SpanIDFromHex(parts[3])
 		if err != nil {
-			return ctx, filename, fmt.Errorf("parsing OpenTelemetry span id %q failed: %s", parts[3], err)
+			return ctx, filename, fmt.Errorf("parsing OpenTelemetry span id %q failed: %w", parts[3], err)
 		}
 
 		// create a span context with the parent trace id & span id
 		spanCtx := trace.NewSpanContext(trace.SpanContextConfig{
-			TraceID:    traceId,
-			SpanID:     spanId,
+			TraceID:    traceID,
+			SpanID:     spanID,
 			Remote:     true,
 			TraceFlags: trace.FlagsSampled, // TODO: use the parts[4] value instead
 		})
 
 		// inject it into the context.Context and return it along with the original filename
 		return trace.ContextWithSpanContext(ctx, spanCtx), parts[1], nil
-	} else {
-		// no traceparent found, return everything as it was
-		return ctx, filename, nil
 	}
+	// no traceparent found, return everything as it was
+	return ctx, filename, nil
 }
 
 func serveFakeReader(l logr.Logger, filename string) (tftpgo.ReadCloser, error) {
@@ -224,14 +231,14 @@ func (r *fakeReader) Read(p []byte) (n int, err error) {
 	return
 }
 
-type transfer struct {
+type Transfer struct {
 	log    logr.Logger
 	unread []byte
 	start  time.Time
 }
 
-// Open sets up a tftp transfer object that implements tftpgo.ReadCloser
-func Open(ctx context.Context, l logr.Logger, mac net.HardwareAddr, filename, client string) (*transfer, error) {
+// Open sets up a tftp transfer object that implements tftpgo.ReadCloser.
+func Open(_ context.Context, l logr.Logger, mac net.HardwareAddr, filename, client string) (*Transfer, error) {
 	logger := l.WithValues("mac", mac, "client", client, "filename", filename)
 
 	content, ok := bin.Files[filename]
@@ -241,7 +248,7 @@ func Open(ctx context.Context, l logr.Logger, mac net.HardwareAddr, filename, cl
 		return nil, err
 	}
 
-	t := &transfer{
+	t := &Transfer{
 		log:    logger,
 		unread: content,
 		start:  time.Now(),
@@ -251,7 +258,7 @@ func Open(ctx context.Context, l logr.Logger, mac net.HardwareAddr, filename, cl
 	return t, nil
 }
 
-func (t *transfer) Close() error {
+func (t *Transfer) Close() error {
 	d := time.Since(t.start)
 	n := len(t.unread)
 
@@ -261,7 +268,7 @@ func (t *transfer) Close() error {
 	return nil
 }
 
-func (t *transfer) Read(p []byte) (n int, err error) {
+func (t *Transfer) Read(p []byte) (n int, err error) {
 	if len(p) == 0 {
 		t.log.V(0).Info("event", "read", 0, "unread", len(t.unread))
 		return
@@ -278,6 +285,6 @@ func (t *transfer) Read(p []byte) (n int, err error) {
 	return
 }
 
-func (t *transfer) Size() int {
+func (t *Transfer) Size() int {
 	return len(t.unread)
 }

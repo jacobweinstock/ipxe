@@ -1,0 +1,39 @@
+[
+    {
+        "id": "0eba0bf8-3772-4b4a-ab9f-6ebe93b90a94",
+        "metadata": "",
+        "network": {
+          "interfaces": [
+            {
+              "dhcp": {
+                "arch": "x86_64",
+                "hostname": "server001",
+                "ip": {
+                  "address": "192.168.2.225",
+                  "gateway": "192.168.1.1",
+                  "netmask": "255.255.255.248"
+                },
+                "lease_time": 86400,
+                "mac": "00:00:00:00:00:00",
+                "name_servers": [],
+                "time_servers": [],
+                "uefi": false
+              },
+              "netboot": {
+                "allow_pxe": true,
+                "allow_workflow": true,
+                "ipxe": {
+                  "contents": "#!ipxe",
+                  "url": "http://url/menu.ipxe"
+                },
+                "osie": {
+                  "base_url": "",
+                  "initrd": "",
+                  "kernel": "vmlinuz-x86_64"
+                }
+              }
+            }
+          ]
+        }
+      }
+]

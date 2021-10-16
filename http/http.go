@@ -53,6 +53,7 @@ func (s server) serveFile(w http.ResponseWriter, req *http.Request) {
 	}
 	allowed, err := s.backend.Allowed(context.TODO(), net.ParseIP(host))
 	if err != nil {
+		// TODO(jacobweinstock): connections errors should probably be 500 but not found errors should be 403
 		http.Error(w, "error talking with backend", http.StatusInternalServerError)
 		s.log.V(0).Error(err, "error talking with backend")
 		return
@@ -64,5 +65,7 @@ func (s server) serveFile(w http.ResponseWriter, req *http.Request) {
 	}
 	got := filepath.Base(req.URL.Path)
 	file := bin.Files[got]
-	w.Write(file)
+	if _, err := w.Write(file); err != nil {
+		s.log.V(0).Error(err, "error serving file")
+	}
 }
