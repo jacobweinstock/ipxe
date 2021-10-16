@@ -12,7 +12,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/jacobweinstock/ipxe-bin/backend"
-	"github.com/jacobweinstock/ipxe-bin/bin"
+	"github.com/jacobweinstock/ipxe-bin/binary"
 	"github.com/pkg/errors"
 	tftpgo "github.com/tinkerbell/tftp-go"
 	"go.opentelemetry.io/otel"
@@ -241,7 +241,7 @@ type Transfer struct {
 func Open(_ context.Context, l logr.Logger, mac net.HardwareAddr, filename, client string) (*Transfer, error) {
 	logger := l.WithValues("mac", mac, "client", client, "filename", filename)
 
-	content, ok := bin.Files[filename]
+	content, ok := binary.Files[filename]
 	if !ok {
 		err := errors.Wrap(os.ErrNotExist, "unknown file")
 		l.V(0).Error(err, "event", "open")

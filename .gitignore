@@ -16,3 +16,5 @@
 
 # added by lint-install
 out/
+
+bin/

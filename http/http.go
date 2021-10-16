@@ -9,7 +9,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/jacobweinstock/ipxe-bin/backend"
-	"github.com/jacobweinstock/ipxe-bin/bin"
+	"github.com/jacobweinstock/ipxe-bin/binary"
 )
 
 type server struct {
@@ -64,7 +64,7 @@ func (s server) serveFile(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	got := filepath.Base(req.URL.Path)
-	file := bin.Files[got]
+	file := binary.Files[got]
 	if _, err := w.Write(file); err != nil {
 		s.log.V(0).Error(err, "error serving file")
 	}
