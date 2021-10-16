@@ -1,4 +1,4 @@
-BINARY:=ipxe-bin
+BINARY:=ipxe
 OSFLAG:= $(shell go env GOHOSTOS)
 BUILD_ARGS:=GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags '-s -w -extldflags "-static"'
 
@@ -25,7 +25,7 @@ else
 	@$(MAKE) darwin
 endif
 
-# BEGIN: lint-install /Users/jacobweinstock/repos/jacobweinstock/ipxe-bin
+# BEGIN: lint-install /Users/jacobweinstock/repos/jacobweinstock/ipxe
 # http://github.com/tinkerbell/lint-install
 
 GOLINT_VERSION ?= v1.42.1
@@ -61,4 +61,4 @@ out/linters/golangci-lint-$(GOLINT_VERSION)-$(LINT_ARCH):
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b out/linters $(GOLINT_VERSION)
 	mv out/linters/golangci-lint out/linters/golangci-lint-$(GOLINT_VERSION)-$(LINT_ARCH)
 
-# END: lint-install /Users/jacobweinstock/repos/jacobweinstock/ipxe-bin
+# END: lint-install /Users/jacobweinstock/repos/jacobweinstock/ipxe

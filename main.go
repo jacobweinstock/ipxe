@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/jacobweinstock/ipxe-bin/cmd"
+	"github.com/jacobweinstock/ipxe/cmd"
 )
 
 func main() {

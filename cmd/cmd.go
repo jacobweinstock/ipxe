@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/jacobweinstock/ipxe-bin/cli"
+	"github.com/jacobweinstock/ipxe/cli"
 )
 
 func Execute(ctx context.Context) error {

@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/jacobweinstock/ipxe-bin/backend"
-	"github.com/jacobweinstock/ipxe-bin/binary"
+	"github.com/jacobweinstock/ipxe/backend"
+	"github.com/jacobweinstock/ipxe/binary"
 	"github.com/pkg/errors"
 	tftpgo "github.com/tinkerbell/tftp-go"
 	"go.opentelemetry.io/otel"

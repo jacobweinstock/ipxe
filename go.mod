@@ -1,4 +1,4 @@
-module github.com/jacobweinstock/ipxe-bin
+module github.com/jacobweinstock/ipxe
 
 go 1.16
 

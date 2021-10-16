@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 
 	"github.com/go-logr/logr"
-	"github.com/jacobweinstock/ipxe-bin/backend"
-	"github.com/jacobweinstock/ipxe-bin/binary"
+	"github.com/jacobweinstock/ipxe/backend"
+	"github.com/jacobweinstock/ipxe/binary"
 )
 
 type server struct {

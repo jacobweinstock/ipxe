@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-const rootCLI = "ipxe-bin"
+const rootCLI = "ipxe"
 
 type config struct {
 	TFTPAddr string
