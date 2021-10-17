@@ -35,13 +35,13 @@ ipxe_sha_or_tag := "2265a65191d76ce367913a61c97752ab88ab1a59"
 ipxe_build_in_docker := $(shell if [ $(OSFLAG) = "darwin" ]; then echo true; else echo false; fi)
 
 binary/ipxe.efi: ## build ipxe.efi
-	scripts/build_ipxe.sh bin-x86_64-efi/ipxe.efi "$(ipxe_sha_or_tag)" $(ipxe_build_in_docker) $@
+	script/build_ipxe.sh bin-x86_64-efi/ipxe.efi "$(ipxe_sha_or_tag)" $(ipxe_build_in_docker) $@
 
 binary/undionly.kpxe: ## build undionly.kpxe
-	scripts/build_ipxe.sh bin/undionly.kpxe "$(ipxe_sha_or_tag)" $(ipxe_build_in_docker) $@
+	script/build_ipxe.sh bin/undionly.kpxe "$(ipxe_sha_or_tag)" $(ipxe_build_in_docker) $@
 
 binary/snp.efi: ## build snp.efi
-	scripts/build_ipxe.sh bin-arm64-efi/snp.efi "$(ipxe_sha_or_tag)" $(ipxe_build_in_docker) $@ "CROSS_COMPILE=aarch64-unknown-linux-gnu-"
+	script/build_ipxe.sh bin-arm64-efi/snp.efi "$(ipxe_sha_or_tag)" $(ipxe_build_in_docker) $@ "CROSS_COMPILE=aarch64-unknown-linux-gnu-"
 
 .PHONY: binary/clean
 binary/clean: ## clean all ipxe binaries, upstream ipxe source code directory, and ipxe source tarball

@@ -36,7 +36,7 @@ function build_ipxe() {
     if [ "${run_in_docker}" = true ]; then
         if [ ! -f "${ipxe_dir}/src/${ipxe_bin}" ]; then
             echo "running in docker"
-            docker run -it --rm -v ${PWD}:/code -w /code nixos/nix nix-shell scripts/shell.nix --run "${env_opts} make -C ${ipxe_dir}/src EMBED=${embed_path} ${ipxe_bin}"
+            docker run -it --rm -v ${PWD}:/code -w /code nixos/nix nix-shell script/shell.nix --run "${env_opts} make -C ${ipxe_dir}/src EMBED=${embed_path} ${ipxe_bin}"
         fi
     else
         echo "running locally"
@@ -59,9 +59,9 @@ function make_local_empty() {
 
 function copy_common_files() {
     local ipxe_dir="$1" 
-    cp -a scripts/ipxe-customizations/colour.h "${ipxe_dir}"/src/config/local/
-    cp -a scripts/ipxe-customizations/common.h "${ipxe_dir}"/src/config/local/
-    cp -a scripts/ipxe-customizations/console.h "${ipxe_dir}"/src/config/local/
+    cp -a script/ipxe-customizations/colour.h "${ipxe_dir}"/src/config/local/
+    cp -a script/ipxe-customizations/common.h "${ipxe_dir}"/src/config/local/
+    cp -a script/ipxe-customizations/console.h "${ipxe_dir}"/src/config/local/
 }
 
 function copy_custom_files() {
@@ -70,17 +70,17 @@ function copy_custom_files() {
 
     case "${ipxe_bin}" in
     bin/undionly.kpxe)
-    	cp scripts/ipxe-customizations/general.undionly.h "${ipxe_dir}"/src/config/local/general.h
+    	cp script/ipxe-customizations/general.undionly.h "${ipxe_dir}"/src/config/local/general.h
     	;;
     bin/ipxe.lkrn)
-    	cp scripts/ipxe-customizations/general.undionly.h "${ipxe_dir}"/src/config/local/general.h
+    	cp script/ipxe-customizations/general.undionly.h "${ipxe_dir}"/src/config/local/general.h
     	;;
     bin-x86_64-efi/ipxe.efi)
-    	cp scripts/ipxe-customizations/general.efi.h "${ipxe_dir}"/src/config/local/general.h
-        cp scripts/ipxe-customizations/isa.h "${ipxe_dir}"/src/config/local/isa.h
+    	cp script/ipxe-customizations/general.efi.h "${ipxe_dir}"/src/config/local/general.h
+        cp script/ipxe-customizations/isa.h "${ipxe_dir}"/src/config/local/isa.h
     	;;
     bin-arm64-efi/snp.efi)
-    	cp scripts/ipxe-customizations/general.efi.h "${ipxe_dir}"/src/config/local/general.h
+    	cp script/ipxe-customizations/general.efi.h "${ipxe_dir}"/src/config/local/general.h
     	;;
     *) echo "unknown binary: ${ipxe_bin}" >&2 && exit 1 ;;
     esac
@@ -118,4 +118,4 @@ function main() {
     cp -a "upstream-${ipxe_sha_or_tag}/src/${bin_path}" "${final_path}"
 }
 
-main "$1" "$2" "$3" "$4" "${5:-''}" "${6:-scripts/embed.ipxe}" 
+main "$1" "$2" "$3" "$4" "${5:-''}" "${6:-script/embed.ipxe}" 
