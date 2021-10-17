@@ -18,3 +18,5 @@
 out/
 
 bin/
+upstream-*
+ipxe-*.tar.gz
