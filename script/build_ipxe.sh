@@ -40,7 +40,7 @@ function build_ipxe() {
         fi
     else
         echo "running locally"
-        ${env_opts} make -C "${ipxe_dir}/src" EMBED=${embed_path} ${ipxe_bin}
+        nix-shell script/shell.nix --run "${env_opts} make -C ${ipxe_dir}/src EMBED=${embed_path} ${ipxe_bin}"
     fi
 }
 
