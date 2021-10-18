@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
+# This script handles all the steps needed to
+# download and compile ipxe from source.
 
 set -eux
 
+# download_ipxe_repo will download a source archive from github.
 function download_ipxe_repo() {
     local sha_or_tag="$1"
     if [ ! -f "ipxe-${sha_or_tag}.tar.gz" ]; then
@@ -13,6 +16,7 @@ function download_ipxe_repo() {
     
 }
 
+# extract_ipxe_repo will extract a tarball.
 function extract_ipxe_repo() {
     local archive_name="$1"
     local archive_dir="$2"
@@ -26,6 +30,8 @@ function extract_ipxe_repo() {
     fi
 }
 
+# build_ipxe will run the make target in the upstream ipxe source
+# that will build an ipxe binary.
 function build_ipxe() {
     local ipxe_dir="$1"
     local ipxe_bin="$2"
@@ -44,6 +50,8 @@ function build_ipxe() {
     fi
 }
 
+# mv_embed_into_build will move an ipxe script into a location available
+# to the ipxe build so that it can be embedded into an ipxe binary.
 function mv_embed_into_build() {
     local embed_path="$1"
     local ipxe_dir="$2"
@@ -51,12 +59,15 @@ function mv_embed_into_build() {
     cp -a "${embed_path}" "${ipxe_dir}"/src/embed.ipxe
 }
 
+# make_local_empty will delete any custom ipxe header files,
+# putting the ipxe src back to a known good/clean state.
 function make_local_empty() {
     local ipxe_dir="$1" 
 
     rm -rf "${ipxe_dir}"/src/config/local/*
 }
 
+# copy_common_files will copy common custom header files into the ipxe src path.
 function copy_common_files() {
     local ipxe_dir="$1" 
     cp -a script/ipxe-customizations/colour.h "${ipxe_dir}"/src/config/local/
@@ -64,6 +75,7 @@ function copy_common_files() {
     cp -a script/ipxe-customizations/console.h "${ipxe_dir}"/src/config/local/
 }
 
+# copy_custom_files will copy in any custom header files based on a requested ipxe binary.
 function copy_custom_files() {
     local ipxe_dir="$1"
     local ipxe_bin="$2"
@@ -86,12 +98,15 @@ function copy_custom_files() {
     esac
 }
 
+# customize_aarch_build will modify a make file for arm64 builds.
+# see http://lists.ipxe.org/pipermail/ipxe-devel/2018-August/006254.html .
 function customize_aarch_build() {
     local ipxe_dir="$1"
     # http://lists.ipxe.org/pipermail/ipxe-devel/2018-August/006254.html
     sed -i.bak '/^WORKAROUND_CFLAGS/ s|^|#|' "${ipxe_dir}"/src/arch/arm64/Makefile
 }
 
+# customize orchestrates the process for adding custom headers to an ipxe compile.
 function customize() {
     local ipxe_dir="$1"
     local ipxe_bin="$2"
@@ -102,6 +117,7 @@ function customize() {
     customize_aarch_build "${ipxe_dir}"
 }
 
+# main function orchestrating a full ipxe compile.
 function main() {
     local bin_path="$(echo $1 | xargs)"
     local ipxe_sha_or_tag="$(echo $2 | xargs)"
