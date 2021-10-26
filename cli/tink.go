@@ -14,8 +14,8 @@ import (
 
 const tinkCLI = "tink"
 
-type tinkCfg struct {
-	config
+type TinkCfg struct {
+	Config
 	// TLS can be one of the following
 	// 1. location on disk of a cert
 	// example: /location/on/disk/of/cert
@@ -29,38 +29,49 @@ type tinkCfg struct {
 	Tink string `validate:"required"`
 }
 
-func tink() *ffcli.Command {
-	cfg := tinkCfg{}
+func Tink() (*ffcli.Command, *TinkCfg) {
+	cfg := &TinkCfg{}
 	fs := flag.NewFlagSet(tinkCLI, flag.ExitOnError)
-	fs.StringVar(&cfg.TFTPAddr, "tftp-addr", "0.0.0.0:69", "IP and port to listen on for TFTP.")
-	fs.StringVar(&cfg.HTTPAddr, "http-addr", "0.0.0.0:8080", "IP and port to listen on for HTTP.")
-	fs.StringVar(&cfg.LogLevel, "loglevel", "info", "log level (optional)")
-	fs.StringVar(&cfg.Tink, "tink", "", "tink server URL (required)")
-	description := "(file:///path/to/cert/tink.cert, http://tink-server:42114/cert, boolean (false - no TLS, true - tink has a cert from known CA) (optional)"
-	fs.StringVar(&cfg.TLS, "tls", "false", "tink server TLS "+description)
+	RegisterFlagsTink(cfg, fs)
+	sf := fs.Lookup("tink")
+	nfs := flag.NewFlagSet("testing", flag.ExitOnError)
+	nfs.StringVar(&cfg.Tink, sf.Name, sf.DefValue, sf.Usage)
 
 	return &ffcli.Command{
 		Name:       tinkCLI,
 		ShortUsage: tinkCLI,
 		FlagSet:    fs,
 		Exec: func(ctx context.Context, _ []string) error {
-			cfg.Log = defaultLogger(cfg.LogLevel)
-			cfg.Log.V(0).Info("starting ipxe", "tftp-addr", cfg.TFTPAddr, "http-addr", cfg.HTTPAddr)
-			g, ctx := errgroup.WithContext(ctx)
-			gc, err := backend.SetupClient(ctx, cfg.Log, cfg.TLS, cfg.Tink)
-			if err != nil {
-				return err
-			}
-			c := hardware.NewHardwareServiceClient(gc)
-			g.Go(func() error {
-				return tftp.ServeTFTP(ctx, cfg.Log, &backend.Tinkerbell{Client: c, Log: cfg.Log}, cfg.TFTPAddr)
-			})
-
-			g.Go(func() error {
-				return http.ListenAndServe(ctx, cfg.Log, &backend.Tinkerbell{Client: c, Log: cfg.Log}, cfg.HTTPAddr)
-			})
-
-			return g.Wait()
+			return cfg.Exec(ctx, nil)
 		},
+	}, cfg
+}
+
+func RegisterFlagsTink(cfg *TinkCfg, fs *flag.FlagSet) {
+	fs.StringVar(&cfg.TFTPAddr, "tftp-addr", "0.0.0.0:69", "IP and port to listen on for TFTP.")
+	fs.StringVar(&cfg.HTTPAddr, "http-addr", "0.0.0.0:8080", "IP and port to listen on for HTTP.")
+	fs.StringVar(&cfg.LogLevel, "loglevel", "info", "log level (optional)")
+	fs.StringVar(&cfg.Tink, "tink", "", "tink server URL (required)")
+	description := "(file:///path/to/cert/tink.cert, http://tink-server:42114/cert, boolean (false - no TLS, true - tink has a cert from known CA) (optional)"
+	fs.StringVar(&cfg.TLS, "tls", "false", "tink server TLS "+description)
+}
+
+func (t *TinkCfg) Exec(ctx context.Context, _ []string) error {
+	t.Log = defaultLogger(t.LogLevel)
+	t.Log.Info("starting ipxe", "tftp-addr", t.TFTPAddr, "http-addr", t.HTTPAddr)
+	g, ctx := errgroup.WithContext(ctx)
+	gc, err := backend.SetupClient(ctx, t.Log, t.TLS, t.Tink)
+	if err != nil {
+		return err
 	}
+	c := hardware.NewHardwareServiceClient(gc)
+	g.Go(func() error {
+		return tftp.ServeTFTP(ctx, t.Log, &backend.Tinkerbell{Client: c, Log: t.Log}, t.TFTPAddr)
+	})
+
+	g.Go(func() error {
+		return http.ListenAndServe(ctx, t.Log, &backend.Tinkerbell{Client: c, Log: t.Log}, t.HTTPAddr)
+	})
+
+	return g.Wait()
 }

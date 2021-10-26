@@ -14,7 +14,7 @@ import (
 
 const rootCLI = "ipxe"
 
-type config struct {
+type Config struct {
 	TFTPAddr string
 	HTTPAddr string
 	LogLevel string
@@ -22,12 +22,14 @@ type config struct {
 }
 
 func IpxeBin() *ffcli.Command {
+	f, _ := File()
+	t, _ := Tink()
 	return &ffcli.Command{
 		Name:       rootCLI,
 		ShortUsage: rootCLI,
 		Subcommands: []*ffcli.Command{
-			tink(),
-			file(),
+			t,
+			f,
 		},
 		Exec: func(ctx context.Context, _ []string) error {
 			return flag.ErrHelp

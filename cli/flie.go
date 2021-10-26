@@ -17,48 +17,56 @@ import (
 
 const fileCLI = "file"
 
-type fileCfg struct {
-	config
-	filename string
+type FileCfg struct {
+	Config
+	Filename string
 }
 
-func file() *ffcli.Command {
-	cfg := fileCfg{}
+func File() (*ffcli.Command, *FileCfg) {
+	cfg := &FileCfg{}
 	fs := flag.NewFlagSet(fileCLI, flag.ExitOnError)
-	fs.StringVar(&cfg.TFTPAddr, "tftp-addr", "0.0.0.0:69", "IP and port to listen on for TFTP.")
-	fs.StringVar(&cfg.HTTPAddr, "http-addr", "0.0.0.0:8080", "IP and port to listen on for HTTP.")
-	fs.StringVar(&cfg.LogLevel, "loglevel", "info", "log level (optional)")
-	fs.StringVar(&cfg.filename, "filename", "", "filename to read data (required)")
+	RegisterFlagsFile(cfg, fs)
 
 	return &ffcli.Command{
 		Name:       fileCLI,
 		ShortUsage: fileCLI,
 		FlagSet:    fs,
 		Exec: func(ctx context.Context, _ []string) error {
-			cfg.Log = defaultLogger(cfg.LogLevel)
-			cfg.Log.V(0).Info("starting ipxe", "tftp-addr", cfg.TFTPAddr, "http-addr", cfg.HTTPAddr)
-
-			saData, err := ioutil.ReadFile(cfg.filename)
-			if err != nil {
-				return errors.Wrapf(err, "could not read file %q", cfg.filename)
-			}
-			dsDB := []*hardware.Hardware{}
-			if err := json.Unmarshal(saData, &dsDB); err != nil {
-				return errors.Wrapf(err, "unable to parse configuration file %q", cfg.filename)
-			}
-
-			f := &backend.File{DB: dsDB}
-
-			g, ctx := errgroup.WithContext(ctx)
-			g.Go(func() error {
-				return tftp.ServeTFTP(ctx, cfg.Log, f, cfg.TFTPAddr)
-			})
-
-			g.Go(func() error {
-				return http.ListenAndServe(ctx, cfg.Log, f, cfg.HTTPAddr)
-			})
-
-			return g.Wait()
+			return cfg.Exec(ctx, nil)
 		},
+	}, cfg
+}
+
+func RegisterFlagsFile(cfg *FileCfg, fs *flag.FlagSet) {
+	fs.StringVar(&cfg.TFTPAddr, "tftp-addr", "0.0.0.0:69", "IP and port to listen on for TFTP.")
+	fs.StringVar(&cfg.HTTPAddr, "http-addr", "0.0.0.0:8080", "IP and port to listen on for HTTP.")
+	fs.StringVar(&cfg.LogLevel, "loglevel", "info", "log level (optional)")
+	fs.StringVar(&cfg.Filename, "filename", "", "filename to read data (required)")
+}
+
+func (f *FileCfg) Exec(ctx context.Context, _ []string) error {
+	f.Log = defaultLogger(f.LogLevel)
+	f.Log.Info("starting ipxe", "tftp-addr", f.TFTPAddr, "http-addr", f.HTTPAddr)
+
+	saData, err := ioutil.ReadFile(f.Filename)
+	if err != nil {
+		return errors.Wrapf(err, "could not read file %q", f.Filename)
 	}
+	dsDB := []*hardware.Hardware{}
+	if err := json.Unmarshal(saData, &dsDB); err != nil {
+		return errors.Wrapf(err, "unable to parse configuration file %q", f.Filename)
+	}
+
+	fb := &backend.File{DB: dsDB}
+
+	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		return tftp.ServeTFTP(ctx, f.Log, fb, f.TFTPAddr)
+	})
+
+	g.Go(func() error {
+		return http.ListenAndServe(ctx, f.Log, fb, f.HTTPAddr)
+	})
+
+	return g.Wait()
 }
