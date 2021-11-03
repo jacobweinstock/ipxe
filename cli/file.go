@@ -96,6 +96,7 @@ func (f *FileCfg) Exec(ctx context.Context, _ []string) error {
 	if f.Log.GetSink() == nil {
 		f.Log = logr.Discard()
 	}
+	f.Log = f.Log.WithName("ipxe")
 
 	f.Log.Info("starting ipxe", "tftp-addr", f.TFTPAddr, "http-addr", f.HTTPAddr)
 
