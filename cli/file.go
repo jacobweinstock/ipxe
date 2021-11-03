@@ -6,6 +6,7 @@ import (
 	"flag"
 	"io/ioutil"
 
+	"github.com/go-logr/logr"
 	"github.com/jacobweinstock/ipxe/backend"
 	"github.com/jacobweinstock/ipxe/http"
 	"github.com/jacobweinstock/ipxe/tftp"
@@ -44,8 +45,58 @@ func RegisterFlagsFile(cfg *FileCfg, fs *flag.FlagSet) {
 	fs.StringVar(&cfg.Filename, "filename", "", "filename to read data (required)")
 }
 
+type Opt func(*FileCfg)
+
+func WithLogger(log logr.Logger) Opt {
+	return func(cfg *FileCfg) {
+		cfg.Log = log
+	}
+}
+
+func WithFilename(filename string) Opt {
+	return func(cfg *FileCfg) {
+		cfg.Filename = filename
+	}
+}
+
+func WithTFTPAddr(tftpAddr string) Opt {
+	return func(cfg *FileCfg) {
+		cfg.TFTPAddr = tftpAddr
+	}
+}
+
+func WithHTTP(addr string) Opt {
+	return func(cfg *FileCfg) {
+		cfg.HTTPAddr = addr
+	}
+}
+
+func WithLogLevel(level string) Opt {
+	return func(cfg *FileCfg) {
+		cfg.LogLevel = level
+	}
+}
+
+func NewFile(opts ...Opt) *FileCfg {
+	c := &FileCfg{
+		Config: Config{
+			Log:      logr.Discard(),
+			TFTPAddr: "0.0.0.0:69",
+			HTTPAddr: "0.0.0.0:8080",
+			LogLevel: "info",
+		},
+	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
+}
+
 func (f *FileCfg) Exec(ctx context.Context, _ []string) error {
-	f.Log = defaultLogger(f.LogLevel)
+	if f.Log.GetSink() == nil {
+		f.Log = logr.Discard()
+	}
+
 	f.Log.Info("starting ipxe", "tftp-addr", f.TFTPAddr, "http-addr", f.HTTPAddr)
 
 	saData, err := ioutil.ReadFile(f.Filename)
