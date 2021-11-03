@@ -25,7 +25,7 @@ func ListenAndServe(ctx context.Context, l logr.Logger, b backend.Reader, addr s
 		router.HandleFunc(fmt.Sprintf("/%s", name), s.serveFile)
 	}
 	srv := http.Server{
-		Addr:    addr,
+		Addr:    addr, // TODO(jacobweinstock): addr needs to be in host:port format
 		Handler: router,
 	}
 	errChan := make(chan error)

@@ -9,12 +9,12 @@
                 "arch": "x86_64",
                 "hostname": "server001",
                 "ip": {
-                  "address": "192.168.2.225",
-                  "gateway": "192.168.1.1",
-                  "netmask": "255.255.255.248"
+                  "address": "192.168.2.52",
+                  "gateway": "192.168.2.1",
+                  "netmask": "255.255.255.0"
                 },
                 "lease_time": 86400,
-                "mac": "00:00:00:00:00:00",
+                "mac": "08:00:27:29:4e:67",
                 "name_servers": [],
                 "time_servers": [],
                 "uefi": false
@@ -31,6 +31,24 @@
                   "initrd": "",
                   "kernel": "vmlinuz-x86_64"
                 }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "0eba0bf8-3772-4b4a-ab9f-6ebe93b90a95",
+        "network": {
+          "interfaces": [
+            {
+              "dhcp": {
+                "ip": {
+                  "address": "192.168.2.54"
+                },
+                "mac": "08:00:27:B1:DA:42"
+              },
+              "netboot": {
+                "allow_pxe": true
               }
             }
           ]
