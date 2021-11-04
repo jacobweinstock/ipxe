@@ -18,7 +18,7 @@ func (f File) Mac(_ context.Context, ip net.IP, mac net.HardwareAddr) (net.Hardw
 			if net.ParseIP(hip.Dhcp.Ip.Address).Equal(ip) {
 				return net.ParseMAC(hip.Dhcp.Mac)
 			}
-			if hw, err := net.ParseMAC(hip.Dhcp.Mac); err != nil {
+			if hw, err := net.ParseMAC(hip.Dhcp.Mac); err == nil {
 				if hw.String() == mac.String() {
 					return hw, nil
 				}
@@ -35,9 +35,9 @@ func (f File) Allowed(_ context.Context, ip net.IP, mac net.HardwareAddr) (bool,
 				// TODO(jacobweinstock): handle hip.Netboot being nil, do we validate the config initially?
 				return hip.Netboot.AllowPxe, nil
 			}
-			if hw, err := net.ParseMAC(hip.Dhcp.Mac); err != nil {
+			if hw, err := net.ParseMAC(hip.Dhcp.Mac); err == nil {
 				if hw.String() == mac.String() {
-					return true, nil
+					return hip.Netboot.AllowPxe, nil
 				}
 			}
 		}
