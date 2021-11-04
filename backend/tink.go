@@ -32,7 +32,7 @@ type Tinkerbell struct {
 	Log    logr.Logger
 }
 
-func (t Tinkerbell) Mac(ctx context.Context, ip net.IP) (net.HardwareAddr, error) {
+func (t Tinkerbell) Mac(ctx context.Context, ip net.IP, mac net.HardwareAddr) (net.HardwareAddr, error) {
 	hw, err := t.Client.ByIP(ctx, &hardware.GetRequest{Ip: ip.String()})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hardware info: %w", err)
@@ -51,7 +51,7 @@ func (t Tinkerbell) Mac(ctx context.Context, ip net.IP) (net.HardwareAddr, error
 	return nil, fmt.Errorf("not found")
 }
 
-func (t Tinkerbell) Allowed(ctx context.Context, ip net.IP) (bool, error) {
+func (t Tinkerbell) Allowed(ctx context.Context, ip net.IP, mac net.HardwareAddr) (bool, error) {
 	hw, err := t.Client.ByIP(ctx, &hardware.GetRequest{Ip: ip.String()})
 	if err != nil {
 		fmt.Println("==========")

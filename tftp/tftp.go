@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"time"
 
@@ -52,6 +53,7 @@ func (t tftpHandler) ReadFile(c tftpgo.Conn, filename string) (tftpgo.ReadCloser
 	*/
 
 	ip, _ := tftpClientIP(c.RemoteAddr())
+	full := filename
 	filename = path.Base(filename)
 	l := t.log.WithValues("client", ip.String(), "event", "open", "filename", filename)
 
@@ -77,7 +79,12 @@ func (t tftpHandler) ReadFile(c tftpgo.Conn, filename string) (tftpgo.ReadCloser
 
 	span.AddEvent("job.CreateFromIP")
 
-	j, err := t.backend.Mac(ctx, ip)
+	// parse mac from the full filename
+	mac, err := net.ParseMAC(path.Dir(full))
+	if err != nil {
+		l.V(0).Error(err, "couldnt get mac from request path")
+	}
+	j, err := t.backend.Mac(ctx, ip, mac)
 	if err != nil {
 		l.V(0).Error(err, "retrieved job is empty")
 		span.SetStatus(codes.Error, "no existing job: "+err.Error())
@@ -92,7 +99,7 @@ func (t tftpHandler) ReadFile(c tftpgo.Conn, filename string) (tftpgo.ReadCloser
 	// 2. the network.interfaces[].netboot.allow_pxe value, in the tink server hardware record, equal to true
 	// This allows serving custom ipxe scripts, starting up into OSIE or other installation environments
 	// without a tink workflow present.
-	allowed, err := t.backend.Allowed(ctx, ip)
+	allowed, err := t.backend.Allowed(ctx, ip, net.HardwareAddr{})
 	if err != nil {
 		l.V(0).Error(err, "failed to determine if client is allowed to boot")
 		span.SetStatus(codes.Error, "failed to determine if client is allowed to boot: "+err.Error())
@@ -241,6 +248,7 @@ type Transfer struct {
 func Open(_ context.Context, l logr.Logger, mac net.HardwareAddr, filename, client string) (*Transfer, error) {
 	logger := l.WithValues("mac", mac, "client", client, "filename", filename)
 
+	filename = filepath.Base(filename)
 	content, ok := binary.Files[filename]
 	if !ok {
 		err := errors.Wrap(os.ErrNotExist, "unknown file")
@@ -262,7 +270,7 @@ func (t *Transfer) Close() error {
 	d := time.Since(t.start)
 	n := len(t.unread)
 
-	t.log.V(0).Info("event", "event", "close", "duration", d, "unread", n)
+	t.log.Info("event", "event", "close", "duration", d, "unread", n)
 
 	t.unread = nil
 	return nil
@@ -270,7 +278,7 @@ func (t *Transfer) Close() error {
 
 func (t *Transfer) Read(p []byte) (n int, err error) {
 	if len(p) == 0 {
-		t.log.V(0).Info("event", "read", 0, "unread", len(t.unread))
+		t.log.Info("event", "read", 0, "unread", len(t.unread))
 		return
 	}
 

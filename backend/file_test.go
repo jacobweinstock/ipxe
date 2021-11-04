@@ -35,7 +35,8 @@ func TestMac(t *testing.T) {
 				record.DB[0].Network.Interfaces[0].Dhcp.Ip.Address = tc.ip
 			}
 			want, _ := net.ParseMAC(tc.mac)
-			got, err := record.Mac(context.TODO(), net.ParseIP(tc.ip))
+			hw, _ := net.ParseMAC(tc.mac)
+			got, err := record.Mac(context.TODO(), net.ParseIP(tc.ip), hw)
 			if err != nil {
 				if tc.err == nil {
 					t.Fatalf("expected err: nil, got: %v", err)
@@ -58,12 +59,13 @@ func TestMac(t *testing.T) {
 func TestAllowed(t *testing.T) {
 	mactests := map[string]struct {
 		ip      string
+		mac     string
 		allowed bool
 		err     error
 	}{
-		"ip allowed":                   {"192.168.2.3", true, nil},
-		"ip not allowed":               {"192.168.2.3", false, nil},
-		"ip not found and not allowed": {"192.168.2.2", false, fmt.Errorf("not found")},
+		"ip allowed":                   {"192.168.2.3", "0a:00:27:00:00:00", true, nil},
+		"ip not allowed":               {"192.168.2.3", "0a:00:27:00:00:00", false, nil},
+		"ip not found and not allowed": {"192.168.2.2", "0a:00:27:00:00:00", false, fmt.Errorf("not found")},
 	}
 	for name, tc := range mactests {
 		t.Run(name, func(t *testing.T) {
@@ -83,7 +85,8 @@ func TestAllowed(t *testing.T) {
 				record.DB[0].Network.Interfaces[0].Dhcp.Ip.Address = tc.ip
 			}
 			record.DB[0].Network.Interfaces[0].Netboot.AllowPxe = tc.allowed
-			got, err := record.Allowed(context.TODO(), net.ParseIP(tc.ip))
+			hw, _ := net.ParseMAC(tc.mac)
+			got, err := record.Allowed(context.TODO(), net.ParseIP(tc.ip), hw)
 			if err != nil {
 				if tc.err == nil {
 					t.Fatalf("expected err: nil, got: %v", err)
