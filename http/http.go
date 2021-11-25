@@ -19,7 +19,7 @@ type server struct {
 	log     logr.Logger
 }
 
-func ListenAndServe(ctx context.Context, l logr.Logger, b backend.Reader, addr netaddr.IPPort) error {
+func ListenAndServe(ctx context.Context, l logr.Logger, b backend.Reader, addr netaddr.IPPort, _ int) error {
 	router := http.NewServeMux()
 	s := server{backend: b, log: l}
 	l.V(0).Info("serving http", "addr", addr)

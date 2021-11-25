@@ -10,6 +10,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/jacobweinstock/ipxe/backend"
@@ -29,11 +30,12 @@ type tftpHandler struct {
 }
 
 // Serve listens on the given address and serves TFTP requests.
-func Serve(ctx context.Context, l logr.Logger, b backend.Reader, addr netaddr.IPPort) error {
+func Serve(ctx context.Context, l logr.Logger, b backend.Reader, addr netaddr.IPPort, timeout int) error {
 	errChan := make(chan error)
 	go func() {
 		t := &tftpHandler{log: l, backend: b}
 		s := tftp.NewServer(t.readHandler, t.writeHandler)
+		s.SetTimeout(time.Duration(timeout) * time.Second)
 		errChan <- s.ListenAndServe(addr.String())
 	}()
 	select {
