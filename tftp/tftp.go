@@ -30,12 +30,12 @@ type tftpHandler struct {
 }
 
 // Serve listens on the given address and serves TFTP requests.
-func Serve(ctx context.Context, l logr.Logger, b backend.Reader, addr netaddr.IPPort, timeout int) error {
+func Serve(ctx context.Context, l logr.Logger, b backend.Reader, addr netaddr.IPPort, timeout time.Duration) error {
 	errChan := make(chan error)
 	go func() {
 		t := &tftpHandler{log: l, backend: b}
 		s := tftp.NewServer(t.readHandler, t.writeHandler)
-		s.SetTimeout(time.Duration(timeout) * time.Second)
+		s.SetTimeout(timeout)
 		errChan <- s.ListenAndServe(addr.String())
 	}()
 	select {

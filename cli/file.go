@@ -118,5 +118,10 @@ func (f *FileCfg) Exec(ctx context.Context, _ []string) error {
 		return errors.Wrapf(err, "could not parse http-addr %q", f.HTTPAddr)
 	}
 	f.Log.Info("starting ipxe", "tftp-addr", f.TFTPAddr, "http-addr", f.HTTPAddr)
-	return ipxe.Serve(ctx, f.Log, fb, ipxe.TFTP{Addr: tAddr}, ipxe.HTTP{Addr: hAddr})
+	c := ipxe.Config{
+		TFTP: ipxe.TFTP{Addr: tAddr},
+		HTTP: ipxe.HTTP{Addr: hAddr},
+		Log:  f.Log,
+	}
+	return c.Serve(ctx, fb)
 }

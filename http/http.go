@@ -7,6 +7,9 @@ import (
 	"net/http"
 	"path"
 	"path/filepath"
+	"strings"
+	"time"
+	"unicode/utf8"
 
 	"github.com/go-logr/logr"
 	"github.com/jacobweinstock/ipxe/backend"
@@ -19,15 +22,14 @@ type server struct {
 	log     logr.Logger
 }
 
-func ListenAndServe(ctx context.Context, l logr.Logger, b backend.Reader, addr netaddr.IPPort, _ int) error {
+func ListenAndServe(ctx context.Context, l logr.Logger, b backend.Reader, addr netaddr.IPPort, _ time.Duration) error {
 	router := http.NewServeMux()
 	s := server{backend: b, log: l}
 	l.V(0).Info("serving http", "addr", addr)
-	for name := range binary.Files {
-		router.HandleFunc(fmt.Sprintf("/%s", name), s.serveFile)
-	}
+	router.HandleFunc("/", s.serveFile)
+
 	srv := http.Server{
-		Addr:    addr.String(), // TODO(jacobweinstock): addr needs to be in host:port format
+		Addr:    addr.String(),
 		Handler: router,
 	}
 	errChan := make(chan error)
@@ -48,15 +50,26 @@ func ListenAndServe(ctx context.Context, l logr.Logger, b backend.Reader, addr n
 	return err
 }
 
+func trimFirstRune(s string) string {
+	_, i := utf8.DecodeRuneInString(s)
+	return s[i:]
+}
+
 func (s server) serveFile(w http.ResponseWriter, req *http.Request) {
 	host, _, err := net.SplitHostPort(req.RemoteAddr)
 	if err != nil {
 		s.log.Error(fmt.Errorf("%s: not allowed", req.RemoteAddr), "could not get your IP address")
 	}
-	mac, err := net.ParseMAC(path.Base(host))
+
+	m := path.Dir(req.URL.Path)
+	if strings.HasPrefix(m, "/") {
+		m = trimFirstRune(path.Dir(req.URL.Path))
+	}
+	mac, err := net.ParseMAC(m)
 	if err != nil {
 		s.log.Info("could not parse mac from request URI", "err", err.Error())
 	}
+	s.log = s.log.WithValues("mac", mac, "host", host)
 	allowed, err := s.backend.Allowed(context.TODO(), net.ParseIP(host), mac)
 	if err != nil {
 		// TODO(jacobweinstock): connections errors should probably be 500 but not found errors should be 403

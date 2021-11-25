@@ -73,6 +73,11 @@ func (t *TinkCfg) Exec(ctx context.Context, _ []string) error {
 	if err != nil {
 		return errors.Wrapf(err, "could not parse http-addr %q", t.HTTPAddr)
 	}
+	cfg := ipxe.Config{
+		TFTP: ipxe.TFTP{Addr: tAddr},
+		HTTP: ipxe.HTTP{Addr: hAddr},
+		Log:  t.Log,
+	}
 
-	return ipxe.Serve(ctx, t.Log, tb, ipxe.TFTP{Addr: tAddr}, ipxe.HTTP{Addr: hAddr})
+	return cfg.Serve(ctx, tb)
 }
