@@ -1,6 +1,7 @@
 package tftp
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -9,17 +10,17 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/jacobweinstock/ipxe/backend"
 	"github.com/jacobweinstock/ipxe/binary"
+	"github.com/pin/tftp"
 	"github.com/pkg/errors"
-	tftpgo "github.com/tinkerbell/tftp-go"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"inet.af/netaddr"
 )
 
 type tftpHandler struct {
@@ -27,11 +28,13 @@ type tftpHandler struct {
 	backend backend.Reader
 }
 
-// ServeTFTP listens on the given address and serves TFTP requests.
-func ServeTFTP(ctx context.Context, l logr.Logger, b backend.Reader, addr string) error {
+// Serve listens on the given address and serves TFTP requests.
+func Serve(ctx context.Context, l logr.Logger, b backend.Reader, addr netaddr.IPPort) error {
 	errChan := make(chan error)
 	go func() {
-		errChan <- tftpgo.ListenAndServe(addr, tftpHandler{l, b})
+		t := &tftpHandler{log: l, backend: b}
+		s := tftp.NewServer(t.readHandler, t.writeHandler)
+		errChan <- s.ListenAndServe(addr.String())
 	}()
 	select {
 	case err := <-errChan:
@@ -41,18 +44,14 @@ func ServeTFTP(ctx context.Context, l logr.Logger, b backend.Reader, addr string
 	}
 }
 
-// Read implements the tftpgo.ReadCloser interface.
-func (t tftpHandler) ReadFile(c tftpgo.Conn, filename string) (tftpgo.ReadCloser, error) {
-	/*
-		labels := prometheus.Labels{"from": "tftp", "op": "read"}
-		metrics.JobsTotal.With(labels).Inc()
-		metrics.JobsInProgress.With(labels).Inc()
-		timer := prometheus.NewTimer(metrics.JobDuration.With(labels))
-		defer timer.ObserveDuration()
-		defer metrics.JobsInProgress.With(labels).Dec()
-	*/
+func (t tftpHandler) readHandler(filename string, rf io.ReaderFrom) error {
+	var ip net.IP
+	if rpi, ok := rf.(tftp.OutgoingTransfer); ok {
+		ip = rpi.RemoteAddr().IP
+	} else {
+		ip = net.IP{}
+	}
 
-	ip, _ := tftpClientIP(c.RemoteAddr())
 	full := filename
 	filename = path.Base(filename)
 	l := t.log.WithValues("client", ip.String(), "event", "open", "filename", filename)
@@ -62,11 +61,11 @@ func (t tftpHandler) ReadFile(c tftpgo.Conn, filename string) (tftpgo.ReadCloser
 	longfile := filename // hang onto this to report in traces
 	ctx, shortfile, err := extractTraceparentFromFilename(context.Background(), filename)
 	if err != nil {
-		l.V(0).Error(err, "")
+		l.Error(err, "")
 	}
 	if shortfile != filename {
 		l = l.WithValues("filename", shortfile) // flip to the short filename in logs
-		l.V(0).Info("client requested filename '", filename, "' with a traceparent attached and has been shortened to '", shortfile, "'")
+		l.Info("client requested filename '", filename, "' with a traceparent attached and has been shortened to '", shortfile, "'")
 		filename = shortfile
 	}
 	tracer := otel.Tracer("TFTP")
@@ -82,15 +81,16 @@ func (t tftpHandler) ReadFile(c tftpgo.Conn, filename string) (tftpgo.ReadCloser
 	// parse mac from the full filename
 	mac, err := net.ParseMAC(path.Dir(full))
 	if err != nil {
-		l.V(0).Error(err, "couldnt get mac from request path")
+		l.Error(err, "couldnt get mac from request path")
 	}
-	j, err := t.backend.Mac(ctx, ip, mac)
+	l = l.WithValues("mac", mac.String())
+	_, err = t.backend.Mac(ctx, ip, mac)
 	if err != nil {
-		l.V(0).Error(err, "retrieved job is empty")
+		l.Error(err, "retrieved job is empty")
 		span.SetStatus(codes.Error, "no existing job: "+err.Error())
 		span.End()
 
-		return serveFakeReader(l, filename)
+		return fmt.Errorf("mac(%q) not found in backend: %w", mac, err)
 	}
 
 	// This gates serving PXE file by
@@ -101,23 +101,48 @@ func (t tftpHandler) ReadFile(c tftpgo.Conn, filename string) (tftpgo.ReadCloser
 	// without a tink workflow present.
 	allowed, err := t.backend.Allowed(ctx, ip, mac)
 	if err != nil {
-		l.V(0).Error(err, "failed to determine if client is allowed to boot")
+		l.Error(err, "failed to determine if client is allowed to boot")
 		span.SetStatus(codes.Error, "failed to determine if client is allowed to boot: "+err.Error())
 		span.End()
-		return serveFakeReader(l, filename)
+		return err
 	}
 	if !allowed {
 		l.Info("the hardware data for this machine, or lack there of, does not allow it to pxe; allow_pxe: false")
 		span.SetStatus(codes.Error, "allow_pxe is false")
 		span.End()
 
-		return serveFakeReader(l, filename)
+		return fmt.Errorf("allow_pxe is false")
 	}
 
 	span.SetStatus(codes.Ok, filename)
 	span.End()
 
-	return Open(ctx, l, j, filename, ip.String())
+	content, ok := binary.Files[filepath.Base(filename)]
+	if !ok {
+		err := errors.Wrap(os.ErrNotExist, "unknown file")
+		l.Error(err, "event", "open")
+		return err
+	}
+	b, err := rf.ReadFrom(bytes.NewReader(content))
+	if err != nil {
+		l.Error(err, "event", "read")
+		return err
+	}
+	l.Info("served", "bytes sent", b, "content size", len(content))
+	return nil
+}
+
+func (t tftpHandler) writeHandler(filename string, wt io.WriterTo) error {
+	err := errors.Wrap(os.ErrPermission, "access_violation")
+	var ip net.IP
+	if rpi, ok := wt.(tftp.OutgoingTransfer); ok {
+		ip = rpi.RemoteAddr().IP
+	} else {
+		ip = net.IP{}
+	}
+	t.log.Error(err, "client", ip, "event", "create", "filename", filename)
+
+	return err
 }
 
 // extractTraceparentFromFilename takes a context and filename and checks the filename for
@@ -153,146 +178,4 @@ func extractTraceparentFromFilename(ctx context.Context, filename string) (conte
 	}
 	// no traceparent found, return everything as it was
 	return ctx, filename, nil
-}
-
-func serveFakeReader(l logr.Logger, filename string) (tftpgo.ReadCloser, error) {
-	switch filename {
-	case "test.1mb":
-		l.V(0).Info("test.1mb", "tftp_fake_read", true)
-
-		return &fakeReader{1 * 1024 * 1024}, nil
-	case "test.8mb":
-		l.V(0).Info("test.8mb", "tftp_fake_read", true)
-
-		return &fakeReader{8 * 1024 * 1024}, nil
-	}
-	l.V(0).Error(errors.Wrap(os.ErrPermission, "access_violation"), "add why")
-
-	return nil, os.ErrPermission
-}
-
-func (t tftpHandler) WriteFile(c tftpgo.Conn, filename string) (tftpgo.WriteCloser, error) {
-	ip, _ := tftpClientIP(c.RemoteAddr())
-	err := errors.Wrap(os.ErrPermission, "access_violation")
-	t.log.V(0).Error(err, "client", ip, "event", "create", "filename", filename)
-
-	return nil, err
-}
-
-func tftpClientIP(addr net.Addr) (net.IP, error) {
-	switch a := addr.(type) {
-	case *net.IPAddr:
-		return a.IP, nil
-	case *net.UDPAddr:
-		return a.IP, nil
-	case *net.TCPAddr:
-		return a.IP, nil
-	}
-
-	host, _, err := net.SplitHostPort(addr.String())
-	if err != nil {
-		err = errors.Wrap(err, "parse host:port")
-
-		return nil, err
-	}
-
-	if ip := net.ParseIP(host); ip != nil {
-		if v4 := ip.To4(); v4 != nil {
-			ip = v4
-		}
-
-		return ip, nil
-	}
-
-	return nil, fmt.Errorf("unable to get IP")
-}
-
-var zeros = make([]byte, 1456)
-
-type fakeReader struct {
-	N int
-}
-
-func (r *fakeReader) Close() error {
-	return nil
-}
-
-func (r *fakeReader) Read(p []byte) (n int, err error) {
-	if len(p) == 0 {
-		return
-	}
-	if len(p) > r.N {
-		p = p[:r.N]
-	}
-
-	for len(p) > 0 {
-		n = copy(p, zeros)
-		r.N -= n
-		p = p[n:]
-	}
-
-	if r.N == 0 {
-		err = io.EOF
-	}
-
-	return
-}
-
-type Transfer struct {
-	log    logr.Logger
-	unread []byte
-	start  time.Time
-}
-
-// Open sets up a tftp transfer object that implements tftpgo.ReadCloser.
-func Open(_ context.Context, l logr.Logger, mac net.HardwareAddr, filename, client string) (*Transfer, error) {
-	logger := l.WithValues("mac", mac, "client", client, "filename", filename)
-
-	filename = filepath.Base(filename)
-	content, ok := binary.Files[filename]
-	if !ok {
-		err := errors.Wrap(os.ErrNotExist, "unknown file")
-		l.V(0).Error(err, "event", "open")
-		return nil, err
-	}
-
-	t := &Transfer{
-		log:    logger,
-		unread: content,
-		start:  time.Now(),
-	}
-
-	t.log.V(1).Info("debugging", "event", "open")
-	return t, nil
-}
-
-func (t *Transfer) Close() error {
-	d := time.Since(t.start)
-	n := len(t.unread)
-
-	t.log.Info("event", "event", "close", "duration", d, "unread", n)
-
-	t.unread = nil
-	return nil
-}
-
-func (t *Transfer) Read(p []byte) (n int, err error) {
-	if len(p) == 0 {
-		t.log.Info("event", "read", 0, "unread", len(t.unread))
-		return
-	}
-
-	n = copy(p, t.unread)
-	t.unread = t.unread[n:]
-
-	if len(t.unread) == 0 {
-		err = io.EOF
-	}
-
-	t.log.V(1).Info("event", "read", n, "unread", len(t.unread))
-	return
-}
-
-func (t *Transfer) Size() int {
-	return len(t.unread)
 }

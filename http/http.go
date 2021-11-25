@@ -11,6 +11,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/jacobweinstock/ipxe/backend"
 	"github.com/jacobweinstock/ipxe/binary"
+	"inet.af/netaddr"
 )
 
 type server struct {
@@ -18,7 +19,7 @@ type server struct {
 	log     logr.Logger
 }
 
-func ListenAndServe(ctx context.Context, l logr.Logger, b backend.Reader, addr string) error {
+func ListenAndServe(ctx context.Context, l logr.Logger, b backend.Reader, addr netaddr.IPPort) error {
 	router := http.NewServeMux()
 	s := server{backend: b, log: l}
 	l.V(0).Info("serving http", "addr", addr)
@@ -26,7 +27,7 @@ func ListenAndServe(ctx context.Context, l logr.Logger, b backend.Reader, addr s
 		router.HandleFunc(fmt.Sprintf("/%s", name), s.serveFile)
 	}
 	srv := http.Server{
-		Addr:    addr, // TODO(jacobweinstock): addr needs to be in host:port format
+		Addr:    addr.String(), // TODO(jacobweinstock): addr needs to be in host:port format
 		Handler: router,
 	}
 	errChan := make(chan error)

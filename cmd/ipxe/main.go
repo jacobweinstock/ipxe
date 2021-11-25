@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/jacobweinstock/ipxe/cmd"
+	"github.com/jacobweinstock/ipxe/cli"
 )
 
 func main() {
@@ -19,7 +19,8 @@ func main() {
 	ctx, done := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGHUP, syscall.SIGTERM)
 	defer done()
 
-	if err := cmd.Execute(ctx); err != nil {
+	root := cli.IpxeBin()
+	if err := root.ParseAndRun(ctx, os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		exitCode = 1
 	}

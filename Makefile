@@ -11,11 +11,11 @@ test: ## run unit tests
 
 .PHONY: darwin
 darwin: ## compile for darwin
-	GOOS=darwin ${BUILD_ARGS} -o bin/${BINARY}-darwin-amd64 main.go
+	GOOS=darwin ${BUILD_ARGS} -o bin/${BINARY}-darwin-amd64 cmd/ipxe/main.go
 
 .PHONY: linux
 linux: ## compile for linux
-	GOOS=linux ${BUILD_ARGS} -o bin/${BINARY}-linux-amd64 main.go
+	GOOS=linux ${BUILD_ARGS} -o bin/${BINARY}-linux-amd64 cmd/ipxe/main.go
 
 .PHONY: build
 build: binary ## compile the binary for the native OS

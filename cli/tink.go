@@ -4,12 +4,12 @@ import (
 	"context"
 	"flag"
 
-	"github.com/jacobweinstock/ipxe/backend"
-	"github.com/jacobweinstock/ipxe/http"
-	"github.com/jacobweinstock/ipxe/tftp"
+	"github.com/jacobweinstock/ipxe"
+	"github.com/jacobweinstock/ipxe/backend/tink"
 	"github.com/peterbourgon/ff/v3/ffcli"
+	"github.com/pkg/errors"
 	"github.com/tinkerbell/tink/protos/hardware"
-	"golang.org/x/sync/errgroup"
+	"inet.af/netaddr"
 )
 
 const tinkCLI = "tink"
@@ -59,19 +59,20 @@ func RegisterFlagsTink(cfg *TinkCfg, fs *flag.FlagSet) {
 func (t *TinkCfg) Exec(ctx context.Context, _ []string) error {
 	t.Log = defaultLogger(t.LogLevel)
 	t.Log.Info("starting ipxe", "tftp-addr", t.TFTPAddr, "http-addr", t.HTTPAddr)
-	g, ctx := errgroup.WithContext(ctx)
-	gc, err := backend.SetupClient(ctx, t.Log, t.TLS, t.Tink)
+	gc, err := tink.SetupClient(ctx, t.Log, t.TLS, t.Tink)
 	if err != nil {
 		return err
 	}
 	c := hardware.NewHardwareServiceClient(gc)
-	g.Go(func() error {
-		return tftp.ServeTFTP(ctx, t.Log, &backend.Tinkerbell{Client: c, Log: t.Log}, t.TFTPAddr)
-	})
+	tb := &tink.Tinkerbell{Client: c, Log: t.Log}
+	tAddr, err := netaddr.ParseIPPort(t.TFTPAddr)
+	if err != nil {
+		return errors.Wrapf(err, "could not parse tftp-addr %q", t.TFTPAddr)
+	}
+	hAddr, err := netaddr.ParseIPPort(t.HTTPAddr)
+	if err != nil {
+		return errors.Wrapf(err, "could not parse http-addr %q", t.HTTPAddr)
+	}
 
-	g.Go(func() error {
-		return http.ListenAndServe(ctx, t.Log, &backend.Tinkerbell{Client: c, Log: t.Log}, t.HTTPAddr)
-	})
-
-	return g.Wait()
+	return ipxe.Serve(ctx, t.Log, tb, tAddr, hAddr)
 }
