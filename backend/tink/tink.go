@@ -32,27 +32,40 @@ type Tinkerbell struct {
 	Log    logr.Logger
 }
 
-func (t Tinkerbell) Mac(ctx context.Context, ip net.IP, _ net.HardwareAddr) (net.HardwareAddr, error) {
+func (t Tinkerbell) Mac(ctx context.Context, ip net.IP, mac net.HardwareAddr) (net.HardwareAddr, error) {
 	hw, err := t.Client.ByIP(ctx, &hardware.GetRequest{Ip: ip.String()})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get hardware info: %w", err)
-	}
-	for _, elem := range hw.GetNetwork().GetInterfaces() {
-		if net.ParseIP(elem.GetDhcp().GetIp().GetAddress()).Equal(ip) {
-			mac, err := net.ParseMAC(elem.GetDhcp().GetMac())
-			if err != nil {
-				return nil, err
-			}
+	if err == nil {
+		for _, elem := range hw.GetNetwork().GetInterfaces() {
+			if net.ParseIP(elem.GetDhcp().GetIp().GetAddress()).Equal(ip) {
+				mac, err := net.ParseMAC(elem.GetDhcp().GetMac())
+				if err != nil {
+					return nil, err
+				}
 
-			return mac, nil
+				return mac, nil
+			}
 		}
 	}
 
-	return nil, fmt.Errorf("not found")
+	// just look for the mac among all records
+	_, err = t.Client.ByMAC(ctx, &hardware.GetRequest{Mac: mac.String()})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get hardware info: %w", err)
+	}
+	return mac, nil
 }
 
-func (t Tinkerbell) Allowed(ctx context.Context, ip net.IP, _ net.HardwareAddr) (bool, error) {
+func (t Tinkerbell) Allowed(ctx context.Context, ip net.IP, mac net.HardwareAddr) (bool, error) {
 	hw, err := t.Client.ByIP(ctx, &hardware.GetRequest{Ip: ip.String()})
+	if err == nil {
+		for _, elem := range hw.GetNetwork().GetInterfaces() {
+			if net.ParseIP(elem.GetDhcp().GetIp().GetAddress()).Equal(ip) {
+				return elem.GetNetboot().GetAllowPxe(), nil
+			}
+		}
+	}
+
+	hw, err = t.Client.ByMAC(ctx, &hardware.GetRequest{Mac: mac.String()})
 	if err != nil {
 		fmt.Println("==========")
 		fmt.Printf("%T\n", err)
@@ -61,11 +74,16 @@ func (t Tinkerbell) Allowed(ctx context.Context, ip net.IP, _ net.HardwareAddr) 
 		fmt.Println(errStatus.Code())
 		fmt.Println("==========")
 		err = errors.Wrap(err, errStatus.Code().String())
-		t.Log.V(0).Error(err, "failed to get hardware info")
+		t.Log.Error(err, "failed to get hardware info")
 		return false, err
+		// return false, fmt.Errorf("failed to get hardware info: %w", err)
 	}
 	for _, elem := range hw.GetNetwork().GetInterfaces() {
-		if net.ParseIP(elem.GetDhcp().GetIp().GetAddress()).Equal(ip) {
+		found, err := net.ParseMAC(elem.GetDhcp().GetMac())
+		if err != nil {
+			continue
+		}
+		if found.String() == mac.String() {
 			return elem.GetNetboot().GetAllowPxe(), nil
 		}
 	}
@@ -83,13 +101,13 @@ func SetupClient(ctx context.Context, log logr.Logger, tlsVal string, tink strin
 	// setup tink server grpc client
 	dialOpt, err := grpcTLS(tlsVal)
 	if err != nil {
-		log.V(0).Error(err, "unable to create gRPC client TLS dial option")
+		log.Error(err, "unable to create gRPC client TLS dial option")
 		return nil, err
 	}
 
 	grpcClient, err := grpc.DialContext(ctx, tink, dialOpt)
 	if err != nil {
-		log.V(0).Error(err, "error connecting to tink server")
+		log.Error(err, "error connecting to tink server")
 		return nil, err
 	}
 
@@ -142,10 +160,18 @@ func grpcTLS(tlsVal string) (grpc.DialOption, error) {
 		if err != nil {
 			return nil, err
 		}
+		if len(data) == 0 {
+			return nil, errors.New("no certificate found")
+		}
 		return grpc.WithTransportCredentials(toCreds(data)), nil
 	case schemeHTTP, schemeHTTPS:
 		// 4. the server has a self-signed cert and the cert needs to be grabbed from a URL -
-		resp, err := http.NewRequestWithContext(context.Background(), "GET", tlsVal, http.NoBody)
+		req, err := http.NewRequestWithContext(context.Background(), "GET", tlsVal, http.NoBody)
+		if err != nil {
+			return nil, err
+		}
+		client := &http.Client{}
+		resp, err := client.Do(req)
 		if err != nil {
 			return nil, err
 		}
@@ -155,7 +181,10 @@ func grpcTLS(tlsVal string) (grpc.DialOption, error) {
 		if err != nil {
 			return nil, err
 		}
-
+		if len(cert) == 0 {
+			return nil, errors.New("no certificate found")
+		}
+		// TODO(jacobweinstock): []byte is a valid TLS cert.
 		return grpc.WithTransportCredentials(toCreds(cert)), nil
 	}
 	return nil, fmt.Errorf("not an expected value: %v", tlsVal)

@@ -38,15 +38,16 @@ function build_ipxe() {
     local run_in_docker="$3"
     local env_opts="$4"
     local embed_path="$5"
+    local nix_shell="$6"
 
     if [ "${run_in_docker}" = true ]; then
         if [ ! -f "${ipxe_dir}/src/${ipxe_bin}" ]; then
             echo "running in docker"
-            docker run -it --rm -v ${PWD}:/code -w /code nixos/nix nix-shell script/shell.nix --run "${env_opts} make -C ${ipxe_dir}/src EMBED=${embed_path} ${ipxe_bin}"
+            docker run -it --rm -v ${PWD}:/code -w /code nixos/nix nix-shell "${nix_shell}" --run "${env_opts} make -C ${ipxe_dir}/src EMBED=${embed_path} ${ipxe_bin}"
         fi
     else
         echo "running locally"
-        nix-shell script/shell.nix --run "${env_opts} make -C ${ipxe_dir}/src EMBED=${embed_path} ${ipxe_bin}"
+        nix-shell "${nix_shell}" --run "${env_opts} make -C ${ipxe_dir}/src EMBED=${embed_path} ${ipxe_bin}"
     fi
 }
 
@@ -70,9 +71,9 @@ function make_local_empty() {
 # copy_common_files will copy common custom header files into the ipxe src path.
 function copy_common_files() {
     local ipxe_dir="$1" 
-    cp -a script/ipxe-customizations/colour.h "${ipxe_dir}"/src/config/local/
-    cp -a script/ipxe-customizations/common.h "${ipxe_dir}"/src/config/local/
-    cp -a script/ipxe-customizations/console.h "${ipxe_dir}"/src/config/local/
+    cp -a binary/script/ipxe-customizations/colour.h "${ipxe_dir}"/src/config/local/
+    cp -a binary/script/ipxe-customizations/common.h "${ipxe_dir}"/src/config/local/
+    cp -a binary/script/ipxe-customizations/console.h "${ipxe_dir}"/src/config/local/
 }
 
 # copy_custom_files will copy in any custom header files based on a requested ipxe binary.
@@ -82,17 +83,17 @@ function copy_custom_files() {
 
     case "${ipxe_bin}" in
     bin/undionly.kpxe)
-    	cp script/ipxe-customizations/general.undionly.h "${ipxe_dir}"/src/config/local/general.h
+    	cp binary/script/ipxe-customizations/general.undionly.h "${ipxe_dir}"/src/config/local/general.h
     	;;
     bin/ipxe.lkrn)
-    	cp script/ipxe-customizations/general.undionly.h "${ipxe_dir}"/src/config/local/general.h
+    	cp binary/script/ipxe-customizations/general.undionly.h "${ipxe_dir}"/src/config/local/general.h
     	;;
     bin-x86_64-efi/ipxe.efi)
-    	cp script/ipxe-customizations/general.efi.h "${ipxe_dir}"/src/config/local/general.h
-        cp script/ipxe-customizations/isa.h "${ipxe_dir}"/src/config/local/isa.h
+    	cp binary/script/ipxe-customizations/general.efi.h "${ipxe_dir}"/src/config/local/general.h
+        cp binary/script/ipxe-customizations/isa.h "${ipxe_dir}"/src/config/local/isa.h
     	;;
     bin-arm64-efi/snp.efi)
-    	cp script/ipxe-customizations/general.efi.h "${ipxe_dir}"/src/config/local/general.h
+    	cp binary/script/ipxe-customizations/general.efi.h "${ipxe_dir}"/src/config/local/general.h
     	;;
     *) echo "unknown binary: ${ipxe_bin}" >&2 && exit 1 ;;
     esac
@@ -117,21 +118,59 @@ function customize() {
     customize_aarch_build "${ipxe_dir}"
 }
 
+function hasType() {
+    if [ -z "$(type type)" ]; then
+        echo "type command not found"
+        return 1
+    fi
+}
+
+function hasDocker() {
+    if [ -z "$(type docker)" ]; then
+        echo "docker command not found"
+        return 1
+    fi
+}
+
+function hasNixShell() {
+    if [ -z "$(type nix-shell)" ]; then
+        echo "nix-shell command not found"
+        return 1
+    fi
+}
+
+function hasUname() {
+    if [ -z "$(type uname)" ]; then
+        echo "uname command not found"
+        return 1
+    fi
+}
+
 # main function orchestrating a full ipxe compile.
 function main() {
     local bin_path="$(echo $1 | xargs)"
     local ipxe_sha_or_tag="$(echo $2 | xargs)"
     local ipxe_build_in_docker="$(echo $3 | xargs)"
     local final_path="$(echo $4 | xargs)"
-    local env_opts="$(echo $5 | xargs)"
-    local embed_path="$(echo $6 | xargs)"
+    local nix_shell="$(echo $5 | xargs)"
+    local env_opts="$(echo $6 | xargs)"
+    local embed_path="$(echo $7 | xargs)"
+
+    # check for prerequisites
+    hasType
+    hasNixShell
+    hasUname
+    local OS_TEST=$(uname | tr '[:upper:]' '[:lower:]')
+    if [[ "${OS_TEST}" != *"linux"* ]]; then
+        hasDocker
+    fi
 
     download_ipxe_repo "${ipxe_sha_or_tag}"
     extract_ipxe_repo "ipxe-${ipxe_sha_or_tag}.tar.gz" "upstream-${ipxe_sha_or_tag}"
     mv_embed_into_build "${embed_path}" "upstream-${ipxe_sha_or_tag}"
     customize "upstream-${ipxe_sha_or_tag}" "${bin_path}"
-    build_ipxe "upstream-${ipxe_sha_or_tag}" "${bin_path}" "${ipxe_build_in_docker}" "${env_opts}" "embed.ipxe"
+    build_ipxe "upstream-${ipxe_sha_or_tag}" "${bin_path}" "${ipxe_build_in_docker}" "${env_opts}" "embed.ipxe" "${nix_shell}"
     cp -a "upstream-${ipxe_sha_or_tag}/src/${bin_path}" "${final_path}"
 }
 
-main "$1" "$2" "$3" "$4" "${5:-''}" "${6:-script/embed.ipxe}" 
+main "$1" "$2" "$3" "$4" "$5" "${6:-''}" "${7:-binary/script/embed.ipxe}"

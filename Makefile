@@ -1,6 +1,8 @@
 BINARY:=ipxe
 OSFLAG:= $(shell go env GOHOSTOS)
 BUILD_ARGS:=GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags '-s -w -extldflags "-static"'
+IPXE_BUILD_SCRIPT:=binary/script/build_ipxe.sh
+IPXE_NIX_SHELL:=binary/script/shell.nix
 
 help: ## show this help message
 	@grep -E '^[a-zA-Z_-]+.*:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[32m%-30s\033[0m %s\n", $$1, $$2}'
@@ -35,13 +37,13 @@ ipxe_sha_or_tag := "2265a65191d76ce367913a61c97752ab88ab1a59"
 ipxe_build_in_docker := $(shell if [ $(OSFLAG) = "darwin" ]; then echo true; else echo false; fi)
 
 binary/ipxe.efi: ## build ipxe.efi
-	script/build_ipxe.sh bin-x86_64-efi/ipxe.efi "$(ipxe_sha_or_tag)" $(ipxe_build_in_docker) $@
+	${IPXE_BUILD_SCRIPT} bin-x86_64-efi/ipxe.efi "$(ipxe_sha_or_tag)" $(ipxe_build_in_docker) $@ "${IPXE_NIX_SHELL}"
 
 binary/undionly.kpxe: ## build undionly.kpxe
-	script/build_ipxe.sh bin/undionly.kpxe "$(ipxe_sha_or_tag)" $(ipxe_build_in_docker) $@
+	${IPXE_BUILD_SCRIPT} bin/undionly.kpxe "$(ipxe_sha_or_tag)" $(ipxe_build_in_docker) $@ "${IPXE_NIX_SHELL}"
 
 binary/snp.efi: ## build snp.efi
-	script/build_ipxe.sh bin-arm64-efi/snp.efi "$(ipxe_sha_or_tag)" $(ipxe_build_in_docker) $@ "CROSS_COMPILE=aarch64-unknown-linux-gnu-"
+	${IPXE_BUILD_SCRIPT} bin-arm64-efi/snp.efi "$(ipxe_sha_or_tag)" $(ipxe_build_in_docker) $@  "${IPXE_NIX_SHELL}" "CROSS_COMPILE=aarch64-unknown-linux-gnu-"
 
 .PHONY: binary/clean
 binary/clean: ## clean all ipxe binaries, upstream ipxe source code directory, and ipxe source tarball

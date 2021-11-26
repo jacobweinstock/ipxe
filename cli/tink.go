@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 
+	"github.com/imdario/mergo"
 	"github.com/jacobweinstock/ipxe"
 	"github.com/jacobweinstock/ipxe/backend/tink"
 	"github.com/peterbourgon/ff/v3/ffcli"
@@ -14,6 +15,7 @@ import (
 
 const tinkCLI = "tink"
 
+// TinkCfg is the configuration for the tink backend.
 type TinkCfg struct {
 	Config
 	// TLS can be one of the following
@@ -57,7 +59,21 @@ func RegisterFlagsTink(cfg *TinkCfg, fs *flag.FlagSet) {
 }
 
 func (t *TinkCfg) Exec(ctx context.Context, _ []string) error {
-	t.Log = defaultLogger(t.LogLevel)
+	defaults := TinkCfg{
+		Config: Config{
+			TFTPAddr: "0.0.0.0:69",
+			HTTPAddr: "0.0.0.0:8080",
+			LogLevel: "info",
+			Log:      defaultLogger("info"),
+		},
+	}
+	err := mergo.Merge(t, defaults)
+	if err != nil {
+		return err
+	}
+	if t.Log.GetSink() == nil {
+		t.Log = defaultLogger(t.LogLevel)
+	}
 	t.Log.Info("starting ipxe", "tftp-addr", t.TFTPAddr, "http-addr", t.HTTPAddr)
 	gc, err := tink.SetupClient(ctx, t.Log, t.TLS, t.Tink)
 	if err != nil {
