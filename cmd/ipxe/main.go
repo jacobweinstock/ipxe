@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/jacobweinstock/ipxe/cli"
+	"github.com/jacobweinstock/ipxe/cmd/ipxe/cli"
 )
 
 func main() {

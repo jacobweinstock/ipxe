@@ -1,4 +1,4 @@
-package http
+package ipxe
 
 import (
 	"context"
@@ -12,17 +12,16 @@ import (
 	"unicode/utf8"
 
 	"github.com/go-logr/logr"
-	"github.com/jacobweinstock/ipxe/backend"
 	"github.com/jacobweinstock/ipxe/binary"
 	"inet.af/netaddr"
 )
 
 type server struct {
-	backend backend.Reader
+	backend Reader
 	log     logr.Logger
 }
 
-func ListenAndServe(ctx context.Context, l logr.Logger, b backend.Reader, addr netaddr.IPPort, _ time.Duration) error {
+func ListenAndServe(ctx context.Context, l logr.Logger, b Reader, addr netaddr.IPPort, _ time.Duration) error {
 	router := http.NewServeMux()
 	s := server{backend: b, log: l}
 	l.V(0).Info("serving http", "addr", addr)

@@ -1,4 +1,4 @@
-package tftp
+package ipxe
 
 import (
 	"bytes"
@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/jacobweinstock/ipxe/backend"
 	"github.com/jacobweinstock/ipxe/binary"
 	"github.com/pin/tftp"
 	"github.com/pkg/errors"
@@ -26,11 +25,11 @@ import (
 
 type tftpHandler struct {
 	log     logr.Logger
-	backend backend.Reader
+	backend Reader
 }
 
 // Serve listens on the given address and serves TFTP requests.
-func Serve(ctx context.Context, l logr.Logger, b backend.Reader, addr netaddr.IPPort, timeout time.Duration) error {
+func serveTFTP(ctx context.Context, l logr.Logger, b Reader, addr netaddr.IPPort, timeout time.Duration) error {
 	errChan := make(chan error)
 	t := &tftpHandler{log: l, backend: b}
 	s := tftp.NewServer(t.readHandler, t.writeHandler)

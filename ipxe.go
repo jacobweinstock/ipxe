@@ -4,14 +4,12 @@ package ipxe
 import (
 	"context"
 	"fmt"
+	"net"
 	"reflect"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/imdario/mergo"
-	"github.com/jacobweinstock/ipxe/backend"
-	"github.com/jacobweinstock/ipxe/http"
-	"github.com/jacobweinstock/ipxe/tftp"
 	"golang.org/x/sync/errgroup"
 	"inet.af/netaddr"
 )
@@ -46,6 +44,11 @@ type HTTP struct {
 
 type ipport netaddr.IPPort
 
+type Reader interface {
+	Mac(context.Context, net.IP, net.HardwareAddr) (net.HardwareAddr, error) // seems to only be used for logging. might not need.
+	Allowed(context.Context, net.IP, net.HardwareAddr) (bool, error)
+}
+
 // Transformer for merging netaddr.IPPort fields.
 func (i ipport) Transformer(typ reflect.Type) func(dst, src reflect.Value) error {
 	if typ == reflect.TypeOf(netaddr.IPPort{}) {
@@ -65,7 +68,7 @@ func (i ipport) Transformer(typ reflect.Type) func(dst, src reflect.Value) error
 
 // Serve will listen and serve iPXE binaries over TFTP and HTTP.
 // See binary/binary.go for the iPXE files that are served.
-func (c Config) Serve(ctx context.Context, b backend.Reader) error {
+func (c Config) Serve(ctx context.Context, b Reader) error {
 	defaults := Config{
 		TFTP:      TFTP{Addr: netaddr.IPPortFrom(netaddr.IPv4(0, 0, 0, 0), 69), Timeout: 5 * time.Second},
 		HTTP:      HTTP{Addr: netaddr.IPPortFrom(netaddr.IPv4(0, 0, 0, 0), 8080), Timeout: 5 * time.Second},
@@ -82,11 +85,11 @@ func (c Config) Serve(ctx context.Context, b backend.Reader) error {
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
-		return fmt.Errorf("tftp error: %w", tftp.Serve(ctx, c.Log, b, c.TFTP.Addr, c.TFTP.Timeout))
+		return fmt.Errorf("tftp error: %w", serveTFTP(ctx, c.Log, b, c.TFTP.Addr, c.TFTP.Timeout))
 	})
 
 	g.Go(func() error {
-		return fmt.Errorf("http error: %w", http.ListenAndServe(ctx, c.Log, b, c.HTTP.Addr, c.HTTP.Timeout))
+		return fmt.Errorf("http error: %w", ListenAndServe(ctx, c.Log, b, c.HTTP.Addr, c.HTTP.Timeout))
 	})
 
 	return g.Wait()
