@@ -32,16 +32,17 @@ type tftpHandler struct {
 // Serve listens on the given address and serves TFTP requests.
 func Serve(ctx context.Context, l logr.Logger, b backend.Reader, addr netaddr.IPPort, timeout time.Duration) error {
 	errChan := make(chan error)
+	t := &tftpHandler{log: l, backend: b}
+	s := tftp.NewServer(t.readHandler, t.writeHandler)
+	s.SetTimeout(timeout)
 	go func() {
-		t := &tftpHandler{log: l, backend: b}
-		s := tftp.NewServer(t.readHandler, t.writeHandler)
-		s.SetTimeout(timeout)
 		errChan <- s.ListenAndServe(addr.String())
 	}()
 	select {
 	case err := <-errChan:
 		return err
 	case <-ctx.Done():
+		s.Shutdown()
 		return ctx.Err()
 	}
 }
@@ -56,7 +57,7 @@ func (t tftpHandler) readHandler(filename string, rf io.ReaderFrom) error {
 
 	full := filename
 	filename = path.Base(filename)
-	l := t.log.WithValues("client", ip.String(), "event", "open", "filename", filename)
+	l := t.log.WithValues("client", ip.String(), "event", "open", "filename", filename, "random", time.Now().UnixNano())
 
 	// clients can send traceparent over TFTP by appending the traceparent string
 	// to the end of the filename they really want
@@ -122,12 +123,15 @@ func (t tftpHandler) readHandler(filename string, rf io.ReaderFrom) error {
 	content, ok := binary.Files[filepath.Base(filename)]
 	if !ok {
 		err := errors.Wrap(os.ErrNotExist, "unknown file")
-		l.Error(err, "event", "open")
+		l.Error(err, "unknown file")
 		return err
 	}
-	b, err := rf.ReadFrom(bytes.NewReader(content))
+	ct := bytes.NewReader(content)
+
+	rf.(tftp.OutgoingTransfer).SetSize(int64(ct.Len()))
+	b, err := rf.ReadFrom(ct)
 	if err != nil {
-		l.Error(err, "event", "read")
+		l.Error(err, "failed to send file", "EOF?", errors.Is(err, io.EOF), "b", b, "content size", len(content))
 		return err
 	}
 	l.Info("served", "bytes sent", b, "content size", len(content))

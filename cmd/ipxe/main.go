@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -20,8 +21,8 @@ func main() {
 	defer done()
 
 	root := cli.IpxeBin()
-	if err := root.ParseAndRun(ctx, os.Args[1:]); err != nil {
+	if err := root.ParseAndRun(ctx, os.Args[1:]); err != nil && !errors.Is(err, context.Canceled) {
 		fmt.Fprintln(os.Stderr, err)
-		exitCode = 1
+		exitCode = 100
 	}
 }
