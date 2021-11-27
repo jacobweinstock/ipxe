@@ -44,9 +44,27 @@ type HTTP struct {
 
 type ipport netaddr.IPPort
 
+type logger logr.Logger
+
 type Reader interface {
 	Mac(context.Context, net.IP, net.HardwareAddr) (net.HardwareAddr, error) // seems to only be used for logging. might not need.
 	Allowed(context.Context, net.IP, net.HardwareAddr) (bool, error)
+}
+
+func (l logger) Transformer(typ reflect.Type) func(dst, src reflect.Value) error {
+	if typ == reflect.TypeOf(logr.Logger{}) {
+		return func(dst, src reflect.Value) error {
+			if dst.CanSet() {
+				isZero := dst.MethodByName("GetSink")
+				result := isZero.Call([]reflect.Value{})
+				if result[0].IsNil() {
+					dst.Set(src)
+				}
+			}
+			return nil
+		}
+	}
+	return nil
 }
 
 // Transformer for merging netaddr.IPPort fields.
@@ -75,12 +93,9 @@ func (c Config) Serve(ctx context.Context, b Reader) error {
 		MACPrefix: true,
 		Log:       logr.Discard(),
 	}
-	err := mergo.Merge(&c, defaults, mergo.WithTransformers(ipport{}))
+	err := mergo.Merge(&c, defaults, mergo.WithTransformers(ipport{}), mergo.WithTransformers(logger{}))
 	if err != nil {
 		return err
-	}
-	if c.Log.GetSink() == nil {
-		c.Log = logr.Discard()
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
