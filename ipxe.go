@@ -85,11 +85,17 @@ func (c Config) Serve(ctx context.Context, b Reader) error {
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
-		return fmt.Errorf("tftp error: %w", serveTFTP(ctx, c.Log, b, c.TFTP.Addr, c.TFTP.Timeout))
+		if err := serveTFTP(ctx, c.Log, b, c.TFTP.Addr, c.TFTP.Timeout); err != nil {
+			return fmt.Errorf("tftp serve error: %w", err)
+		}
+		return nil
 	})
 
 	g.Go(func() error {
-		return fmt.Errorf("http error: %w", ListenAndServe(ctx, c.Log, b, c.HTTP.Addr, c.HTTP.Timeout))
+		if err := ListenAndServe(ctx, c.Log, b, c.HTTP.Addr, c.HTTP.Timeout); err != nil {
+			return fmt.Errorf("http serve error: %w", err)
+		}
+		return nil
 	})
 
 	return g.Wait()
