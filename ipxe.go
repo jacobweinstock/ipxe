@@ -4,7 +4,6 @@ package ipxe
 import (
 	"context"
 	"fmt"
-	"net"
 	"reflect"
 	"time"
 
@@ -46,9 +45,36 @@ type ipport netaddr.IPPort
 
 type logger logr.Logger
 
-type Reader interface {
-	Mac(context.Context, net.IP, net.HardwareAddr) (net.HardwareAddr, error) // seems to only be used for logging. might not need.
-	Allowed(context.Context, net.IP, net.HardwareAddr) (bool, error)
+// Serve will listen and serve iPXE binaries over TFTP and HTTP.
+// See binary/binary.go for the iPXE files that are served.
+func (c Config) Serve(ctx context.Context) error {
+	defaults := Config{
+		TFTP:      TFTP{Addr: netaddr.IPPortFrom(netaddr.IPv4(0, 0, 0, 0), 69), Timeout: 5 * time.Second},
+		HTTP:      HTTP{Addr: netaddr.IPPortFrom(netaddr.IPv4(0, 0, 0, 0), 8080), Timeout: 5 * time.Second},
+		MACPrefix: true,
+		Log:       logr.Discard(),
+	}
+	err := mergo.Merge(&c, defaults, mergo.WithTransformers(ipport{}), mergo.WithTransformers(logger{}))
+	if err != nil {
+		return err
+	}
+
+	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		if err := serveTFTP(ctx, c.Log, c.TFTP.Addr, c.TFTP.Timeout); err != nil {
+			return fmt.Errorf("tftp serve error: %w", err)
+		}
+		return nil
+	})
+
+	g.Go(func() error {
+		if err := ListenAndServe(ctx, c.Log, c.HTTP.Addr, c.HTTP.Timeout); err != nil {
+			return fmt.Errorf("http serve error: %w", err)
+		}
+		return nil
+	})
+
+	return g.Wait()
 }
 
 func (l logger) Transformer(typ reflect.Type) func(dst, src reflect.Value) error {
@@ -82,36 +108,4 @@ func (i ipport) Transformer(typ reflect.Type) func(dst, src reflect.Value) error
 		}
 	}
 	return nil
-}
-
-// Serve will listen and serve iPXE binaries over TFTP and HTTP.
-// See binary/binary.go for the iPXE files that are served.
-func (c Config) Serve(ctx context.Context, b Reader) error {
-	defaults := Config{
-		TFTP:      TFTP{Addr: netaddr.IPPortFrom(netaddr.IPv4(0, 0, 0, 0), 69), Timeout: 5 * time.Second},
-		HTTP:      HTTP{Addr: netaddr.IPPortFrom(netaddr.IPv4(0, 0, 0, 0), 8080), Timeout: 5 * time.Second},
-		MACPrefix: true,
-		Log:       logr.Discard(),
-	}
-	err := mergo.Merge(&c, defaults, mergo.WithTransformers(ipport{}), mergo.WithTransformers(logger{}))
-	if err != nil {
-		return err
-	}
-
-	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		if err := serveTFTP(ctx, c.Log, b, c.TFTP.Addr, c.TFTP.Timeout); err != nil {
-			return fmt.Errorf("tftp serve error: %w", err)
-		}
-		return nil
-	})
-
-	g.Go(func() error {
-		if err := ListenAndServe(ctx, c.Log, b, c.HTTP.Addr, c.HTTP.Timeout); err != nil {
-			return fmt.Errorf("http serve error: %w", err)
-		}
-		return nil
-	})
-
-	return g.Wait()
 }

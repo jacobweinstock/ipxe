@@ -53,5 +53,23 @@
             }
           ]
         }
+      },
+      {
+        "id": "0eba0bf8-3772-4b4a-ab9f-6ebe93b90a96",
+        "network": {
+          "interfaces": [
+            {
+              "dhcp": {
+                "ip": {
+                  "address": "192.168.2.54"
+                },
+                "mac": "52:54:00:be:a9:73"
+              },
+              "netboot": {
+                "allow_pxe": true
+              }
+            }
+          ]
+        }
       }
 ]

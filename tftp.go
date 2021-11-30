@@ -24,14 +24,13 @@ import (
 )
 
 type tftpHandler struct {
-	log     logr.Logger
-	backend Reader
+	log logr.Logger
 }
 
 // Serve listens on the given address and serves TFTP requests.
-func serveTFTP(ctx context.Context, l logr.Logger, b Reader, addr netaddr.IPPort, timeout time.Duration) error {
+func serveTFTP(ctx context.Context, l logr.Logger, addr netaddr.IPPort, timeout time.Duration) error {
 	errChan := make(chan error)
-	t := &tftpHandler{log: l, backend: b}
+	t := &tftpHandler{log: l}
 	s := tftp.NewServer(t.readHandler, t.writeHandler)
 	s.SetTimeout(timeout)
 	go func() {
@@ -83,38 +82,9 @@ func (t tftpHandler) readHandler(filename string, rf io.ReaderFrom) error {
 	// parse mac from the full filename
 	mac, err := net.ParseMAC(path.Dir(full))
 	if err != nil {
-		l.Error(err, "couldnt get mac from request path")
+		l.Info("couldnt get mac from request path")
 	}
 	l = l.WithValues("mac", mac.String())
-	_, err = t.backend.Mac(ctx, ip, mac)
-	if err != nil {
-		l.Error(err, "retrieved job is empty")
-		span.SetStatus(codes.Error, "no existing job: "+err.Error())
-		span.End()
-
-		return fmt.Errorf("mac(%q) not found in backend: %w", mac, err)
-	}
-
-	// This gates serving PXE file by
-	// 1. the existence of a hardware record in tink server
-	// AND
-	// 2. the network.interfaces[].netboot.allow_pxe value, in the tink server hardware record, equal to true
-	// This allows serving custom ipxe scripts, starting up into OSIE or other installation environments
-	// without a tink workflow present.
-	allowed, err := t.backend.Allowed(ctx, ip, mac)
-	if err != nil {
-		l.Error(err, "failed to determine if client is allowed to boot")
-		span.SetStatus(codes.Error, "failed to determine if client is allowed to boot: "+err.Error())
-		span.End()
-		return err
-	}
-	if !allowed {
-		l.Info("the hardware data for this machine, or lack there of, does not allow it to pxe; allow_pxe: false")
-		span.SetStatus(codes.Error, "allow_pxe is false")
-		span.End()
-
-		return fmt.Errorf("allow_pxe is false")
-	}
 
 	span.SetStatus(codes.Ok, filename)
 	span.End()

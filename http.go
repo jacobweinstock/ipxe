@@ -17,13 +17,12 @@ import (
 )
 
 type server struct {
-	backend Reader
-	log     logr.Logger
+	log logr.Logger
 }
 
-func ListenAndServe(ctx context.Context, l logr.Logger, b Reader, addr netaddr.IPPort, _ time.Duration) error {
+func ListenAndServe(ctx context.Context, l logr.Logger, addr netaddr.IPPort, _ time.Duration) error {
 	router := http.NewServeMux()
-	s := server{backend: b, log: l}
+	s := server{log: l}
 	l.V(0).Info("serving http", "addr", addr)
 	router.HandleFunc("/", s.serveFile)
 
@@ -69,18 +68,7 @@ func (s server) serveFile(w http.ResponseWriter, req *http.Request) {
 		s.log.Info("could not parse mac from request URI", "err", err.Error())
 	}
 	s.log = s.log.WithValues("mac", mac, "host", host)
-	allowed, err := s.backend.Allowed(context.TODO(), net.ParseIP(host), mac)
-	if err != nil {
-		// TODO(jacobweinstock): connections errors should probably be 500 but not found errors should be 403
-		http.Error(w, "error talking with backend", http.StatusInternalServerError)
-		s.log.Error(err, "error talking with backend")
-		return
-	}
-	if !allowed {
-		http.Error(w, "not allowed", http.StatusForbidden)
-		s.log.Error(fmt.Errorf("%s: not allowed", req.RemoteAddr), "reported as not allowed")
-		return
-	}
+
 	got := filepath.Base(req.URL.Path)
 	file := binary.Files[got]
 	if _, err := w.Write(file); err != nil {
