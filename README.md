@@ -14,4 +14,4 @@ This repository is designed to be both a library and a command line tool.
 
 ## Architecture
 
-[Architecture document](docs/architecture.png).
+The following architectural diagram details how this iPXE binary service fits into the greater PXE stack. [Architecture](docs/architecture.png).

@@ -70,7 +70,7 @@ func (t tftpHandler) readHandler(filename string, rf io.ReaderFrom) error {
 		filename = shortfile
 	}
 	tracer := otel.Tracer("TFTP")
-	ctx, span := tracer.Start(ctx, "TFTP get",
+	_, span := tracer.Start(ctx, "TFTP get",
 		trace.WithSpanKind(trace.SpanKindServer),
 		trace.WithAttributes(attribute.String("filename", filename)),
 		trace.WithAttributes(attribute.String("requested-filename", longfile)),
