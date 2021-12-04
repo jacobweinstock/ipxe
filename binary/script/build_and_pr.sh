@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -oxe pipefail
+set -uxo pipefail
 
 # check for the GITHUB_TOKEN environment variable
 function check_github_token() {
