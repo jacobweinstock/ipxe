@@ -15,5 +15,5 @@ jobs:
       with:
         nix_path: nixpkgs=channel:nixos-unstable
     - name: Build iPXE
-      run: (cd binary/; GITHUB_TOKEN=${TOKEN} ./script/orchestrate.sh)
+      run: (env; cd binary/; export GITHUB_TOKEN=${TOKEN}; ./script/orchestrate.sh)
     
