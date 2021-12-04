@@ -105,7 +105,6 @@ function push_changes() {
     local branch="${1}"
 
     REPOSITORY="jacobweinstock/ipxe"
-    GITHUB_ACTOR="doesitmatter"
     # push changes
     echo "Pushing changes"
     git push https://${GITHUB_ACTOR}:${GITHUB_TOKEN}@github.com/${REPOSITORY}.git HEAD:"${branch}"
