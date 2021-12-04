@@ -17,8 +17,9 @@ function changes_detected() {
     result=$(sha512sum -c "${file}")
     if [ $? -eq 0 ]; then
         echo "No changes detected"
-        exit 1
+        exit 0
     fi
+    echo "Changes detected"
 }
 
 # remove old iPXE files
