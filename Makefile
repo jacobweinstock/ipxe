@@ -33,7 +33,7 @@ ipxe-sha: ## get shasum of ipxe source code archive
 
 # ipxe_sha_or_tag := v1.21.1 # could not get this tag to build ipxe.efi
 # https://github.com/ipxe/ipxe/tree/2265a65191d76ce367913a61c97752ab88ab1a59
-ipxe_sha_or_tag := "2265a65191d76ce367913a61c97752ab88ab1a59"
+ipxe_sha_or_tag := $(shell cat binary/script/ipxe.commit)
 ipxe_build_in_docker := $(shell if [ $(OSFLAG) = "darwin" ]; then echo true; else echo false; fi)
 
 binary/ipxe.efi: ## build ipxe.efi

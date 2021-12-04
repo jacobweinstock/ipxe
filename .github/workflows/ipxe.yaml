@@ -17,5 +17,5 @@ jobs:
     - name: Build iPXE
       env:
         GITHUB_TOKEN: ${{ secrets.Token }}
-      run: (env; cd binary/; ./script/orchestrate.sh)
+      run: (cd binary/; ./script/orchestrate.sh)
     
