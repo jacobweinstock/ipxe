@@ -128,6 +128,12 @@ function create_pull_request() {
     fi
 }
 
+# clean_up undoes any changes made by the script
+function clean_up() {
+    git config --local --unset user.email
+    git config --local --unset user.name
+}
+
 function main() {
     local sha_file="$1"
 
@@ -146,6 +152,7 @@ function main() {
     commit_changes "script/sha512sum.txt snp.efi ipxe.efi undionly.kpxe" "Update iPXE binaries"
     push_changes "${branch}"
     create_pull_request "${branch}" "Update iPXE binaries"
+    clean_up
 }
 
 main "${1:-./script/sha512sum.txt}"
