@@ -133,20 +133,20 @@ function main() {
     local sha_file="$1"
 
     check_github_token
-    #changes=$(changes_detected "${sha_file}")
-    #if [ ${changes} == "0" ]; then
-    #    echo "No changes detected"
-    #    exit 0
-    #fi
+    changes=$(changes_detected "${sha_file}")
+    if [ ${changes} == "0" ]; then
+        echo "No changes detected"
+        exit 0
+    fi
     branch="update_iPXE_$(date +"%Y_%m_%d_%H_%M_%S")"
-    #create_branch "update_iPXE_$(date +"%Y_%m_%d_%H_%M_%S")"
-    #clean_iPXE
-    #build_iPXE
-    #create_checksums "${sha_file}"
-    #configure_git
+    create_branch "update_iPXE_$(date +"%Y_%m_%d_%H_%M_%S")"
+    clean_iPXE
+    build_iPXE
+    create_checksums "${sha_file}"
+    configure_git
     commit_changes "script/sha512sum.txt snp.efi ipxe.efi undionly.kpxe" "Update iPXE binaries"
     push_changes "${branch}"
     create_pull_request "${branch}" "Update iPXE binaries"
 }
 
-main "$1"
+main "${1:-./script/sha512sum.txt}"
