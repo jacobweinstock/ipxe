@@ -2,6 +2,5 @@
   
 set user-class Tinkerbell
 echo Welcome to Neverland!
-echo Second star to the right and straight on 'til morning
 
 autoboot
