@@ -61,8 +61,6 @@ func (f *Config) Exec(ctx context.Context, _ []string) error {
 	}
 	f.Log = f.Log.WithName("ipxe")
 
-	f.Log.Info("starting ipxe", "tftp-addr", f.TFTPAddr, "http-addr", f.HTTPAddr)
-
 	tAddr, err := netaddr.ParseIPPort(f.TFTPAddr)
 	if err != nil {
 		return errors.Wrapf(err, "could not parse tftp-addr %q", f.TFTPAddr)

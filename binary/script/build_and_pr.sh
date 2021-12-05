@@ -14,8 +14,7 @@ function check_github_token() {
 function changes_detected() {
     local file="${1:-sha512sum.txt}"
 
-    result=$(sha512sum -c "${file}")
-    if [ $? -eq 0 ]; then
+    if sha512sum -c "${file}"; then
         echo "No changes detected"
         exit 0
     fi
@@ -26,8 +25,7 @@ function changes_detected() {
 function clean_iPXE() {
     # remove existing iPXE binaries
     echo "Removing existing iPXE binaries"
-    (cd $(git rev-parse --show-toplevel); make binary/clean)
-    if [ $? -ne 0 ]; then
+    if ! (cd "$(git rev-parse --show-toplevel)"; make binary/clean); then
         echo "Failed to remove iPXE binaries" 1>&2
         exit 1
     fi
@@ -37,8 +35,7 @@ function clean_iPXE() {
 function build_iPXE() {
     # build iPXE
     echo "Building iPXE"
-    (cd $(git rev-parse --show-toplevel); make binary)
-    if [ $? -ne 0 ]; then
+    if ! (cd "$(git rev-parse --show-toplevel)"; make binary); then
         echo "Failed to build iPXE" 1>&2
         exit 1
     fi
@@ -71,13 +68,11 @@ function create_branch() {
     local branch="${1:-update_iPXE_$(date +"%Y_%m_%d_%H_%M_%S")}"
 
     # create a new branch
-    git checkout -b "${branch}"
-    if [ $? -ne 0 ]; then
+    if ! git checkout -b "${branch}"; then
         echo "Failed to create branch ${branch}" 1>&2
         exit 1
     fi
-    push_changes "${branch}"
-    if [ $? -ne 0 ]; then
+    if ! push_changes "${branch}"; then
         echo "Failed to push branch ${branch}" 1>&2
         exit 1
     fi
@@ -90,13 +85,11 @@ function commit_changes() {
 
     # commit changes
     echo "Committing changes"
-    git add ${files}
-    if [ $? -ne 0 ]; then
+    if ! git add "${files}"; then
         echo "Failed to add changes" 1>&2
         exit 1
     fi
-    git commit -sm "${message}"
-    if [ $? -ne 0 ]; then
+    if ! git commit -sm "${message}"; then
         echo "Failed to commit changes" 1>&2
         exit 1
     fi
@@ -111,8 +104,7 @@ function push_changes() {
 
     # push changes
     echo "Pushing changes"
-    git push https://${git_actor}:${token}@github.com/${repository}.git HEAD:"${branch}"
-    if [ $? -ne 0 ]; then
+    if ! git push https://"${git_actor}":"${token}"@github.com/"${repository}".git HEAD:"${branch}"; then
         echo "Failed to push changes" 1>&2
         exit 1
     fi
@@ -127,8 +119,7 @@ function create_pull_request() {
 
     # create pull request
     echo "Creating pull request"
-    $(git rev-parse --show-toplevel)/binary/script/gh pr create --base "${base}" --body "${body}" --title "${title}" --head "${branch}"
-    if [ $? -ne 0 ]; then
+    if ! "$(git rev-parse --show-toplevel)"/binary/script/gh pr create --base "${base}" --body "${body}" --title "${title}" --head "${branch}"; then
         echo "Failed to create pull request" 1>&2
         exit 1
     fi
@@ -150,7 +141,7 @@ function main() {
     clean_iPXE
     build_iPXE
     create_checksums "${sha_file}"
-    configure_git
+    configure_git "github-actions[bot]@users.noreply.github.com" "github-actions[bot]"
     commit_changes "script/sha512sum.txt snp.efi ipxe.efi undionly.kpxe" "Updated iPXE binaries"
     push_changes "${branch}" "jacobweinstock/ipxe" "github-actions[bot]" "${GITHUB_TOKEN}"
     create_pull_request "${branch}" "main" "Update iPXE binaries" "Automated iPXE binaries update."
