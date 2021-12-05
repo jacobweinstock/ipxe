@@ -8,7 +8,6 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"github.com/go-logr/logr"
@@ -16,36 +15,20 @@ import (
 	"inet.af/netaddr"
 )
 
-type server struct {
+type HandleHTTP struct {
 	log logr.Logger
 }
 
-func ListenAndServe(ctx context.Context, l logr.Logger, addr netaddr.IPPort, _ time.Duration) error {
-	router := http.NewServeMux()
-	s := server{log: l}
-	l.V(0).Info("serving http", "addr", addr)
-	router.HandleFunc("/", s.serveFile)
-
-	srv := http.Server{
-		Addr:    addr.String(),
-		Handler: router,
+func ListenAndServeHTTP(ctx context.Context, addr netaddr.IPPort, h *http.Server) error {
+	conn, err := net.Listen("tcp", addr.String())
+	if err != nil {
+		return err
 	}
-	errChan := make(chan error)
-	go func() {
-		if err := srv.ListenAndServe(); err != nil {
-			errChan <- err
-		}
-		errChan <- nil
-	}()
+	return ServeHTTP(ctx, conn, h)
+}
 
-	var err error
-	select {
-	case <-ctx.Done():
-		err = srv.Shutdown(ctx)
-	case e := <-errChan:
-		err = e
-	}
-	return err
+func ServeHTTP(_ context.Context, conn net.Listener, h *http.Server) error {
+	return h.Serve(conn)
 }
 
 func trimFirstRune(s string) string {
@@ -53,7 +36,11 @@ func trimFirstRune(s string) string {
 	return s[i:]
 }
 
-func (s server) serveFile(w http.ResponseWriter, req *http.Request) {
+func (s HandleHTTP) Handler(w http.ResponseWriter, req *http.Request) {
+	if req.Method != "GET" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 	host, _, err := net.SplitHostPort(req.RemoteAddr)
 	if err != nil {
 		s.log.Error(fmt.Errorf("%s: not allowed", req.RemoteAddr), "could not get your IP address")
@@ -70,8 +57,18 @@ func (s server) serveFile(w http.ResponseWriter, req *http.Request) {
 	s.log = s.log.WithValues("mac", mac, "host", host)
 
 	got := filepath.Base(req.URL.Path)
-	file := binary.Files[got]
-	if _, err := w.Write(file); err != nil {
-		s.log.Error(err, "error serving file")
+
+	file, found := binary.Files[got]
+	if !found {
+		s.log.Info("could not find file", "file", got)
+		http.NotFound(w, req)
+		return
 	}
+	b, err := w.Write(file)
+	if err != nil {
+		s.log.Error(err, "error serving file")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	s.log.Info("file served", "bytes sent", b, "content size", len(file), "file", got)
 }

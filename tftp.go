@@ -10,7 +10,6 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/jacobweinstock/ipxe/binary"
@@ -23,39 +22,36 @@ import (
 	"inet.af/netaddr"
 )
 
-type tftpHandler struct {
+type HandleTFTP struct {
 	log logr.Logger
 }
 
-// Serve listens on the given address and serves TFTP requests.
-func serveTFTP(ctx context.Context, l logr.Logger, addr netaddr.IPPort, timeout time.Duration) error {
-	errChan := make(chan error)
-	t := &tftpHandler{log: l}
-	s := tftp.NewServer(t.readHandler, t.writeHandler)
-	s.SetTimeout(timeout)
-	go func() {
-		errChan <- s.ListenAndServe(addr.String())
-	}()
-	select {
-	case err := <-errChan:
+func ListenAndServeTFTP(ctx context.Context, addr netaddr.IPPort, s *tftp.Server) error {
+	a, err := net.ResolveUDPAddr("udp", addr.String())
+	if err != nil {
 		return err
-	case <-ctx.Done():
-		s.Shutdown()
-		return ctx.Err()
 	}
+	conn, err := net.ListenUDP("udp", a)
+	if err != nil {
+		return err
+	}
+	return ServeTFTP(ctx, conn, s)
 }
 
-func (t tftpHandler) readHandler(filename string, rf io.ReaderFrom) error {
-	var ip net.IP
+// Serve listens on the given address and serves TFTP requests.
+func ServeTFTP(_ context.Context, conn net.PacketConn, s *tftp.Server) error {
+	return s.Serve(conn)
+}
+
+func (t HandleTFTP) ReadHandler(filename string, rf io.ReaderFrom) error {
+	client := net.UDPAddr{}
 	if rpi, ok := rf.(tftp.OutgoingTransfer); ok {
-		ip = rpi.RemoteAddr().IP
-	} else {
-		ip = net.IP{}
+		client = rpi.RemoteAddr()
 	}
 
 	full := filename
 	filename = path.Base(filename)
-	l := t.log.WithValues("client", ip.String(), "event", "open", "filename", filename, "random", time.Now().UnixNano())
+	l := t.log.WithValues("event", "get", "filename", filename, "uri", full, "client", client)
 
 	// clients can send traceparent over TFTP by appending the traceparent string
 	// to the end of the filename they really want
@@ -74,16 +70,11 @@ func (t tftpHandler) readHandler(filename string, rf io.ReaderFrom) error {
 		trace.WithSpanKind(trace.SpanKindServer),
 		trace.WithAttributes(attribute.String("filename", filename)),
 		trace.WithAttributes(attribute.String("requested-filename", longfile)),
-		trace.WithAttributes(attribute.String("IP", ip.String())),
+		trace.WithAttributes(attribute.String("IP", client.IP.String())),
 	)
 
-	span.AddEvent("job.CreateFromIP")
-
 	// parse mac from the full filename
-	mac, err := net.ParseMAC(path.Dir(full))
-	if err != nil {
-		l.Info("couldnt get mac from request path")
-	}
+	mac, _ := net.ParseMAC(path.Dir(full))
 	l = l.WithValues("mac", mac.String())
 
 	span.SetStatus(codes.Ok, filename)
@@ -91,31 +82,28 @@ func (t tftpHandler) readHandler(filename string, rf io.ReaderFrom) error {
 
 	content, ok := binary.Files[filepath.Base(filename)]
 	if !ok {
-		err := errors.Wrap(os.ErrNotExist, "unknown file")
-		l.Error(err, "unknown file")
+		err := errors.Wrap(os.ErrNotExist, "file unknown")
+		l.Error(err, "file unknown")
 		return err
 	}
 	ct := bytes.NewReader(content)
 
-	rf.(tftp.OutgoingTransfer).SetSize(int64(ct.Len()))
 	b, err := rf.ReadFrom(ct)
 	if err != nil {
-		l.Error(err, "failed to send file", "EOF?", errors.Is(err, io.EOF), "b", b, "content size", len(content))
+		l.Error(err, "file serve failed", "EOF", errors.Is(err, io.EOF), "b", b, "content size", len(content))
 		return err
 	}
-	l.Info("served", "bytes sent", b, "content size", len(content))
+	l.Info("file served", "bytes sent", b, "content size", len(content))
 	return nil
 }
 
-func (t tftpHandler) writeHandler(filename string, wt io.WriterTo) error {
+func (t HandleTFTP) WriteHandler(filename string, wt io.WriterTo) error {
 	err := errors.Wrap(os.ErrPermission, "access_violation")
-	var ip net.IP
+	client := net.UDPAddr{}
 	if rpi, ok := wt.(tftp.OutgoingTransfer); ok {
-		ip = rpi.RemoteAddr().IP
-	} else {
-		ip = net.IP{}
+		client = rpi.RemoteAddr()
 	}
-	t.log.Error(err, "client", ip, "event", "create", "filename", filename)
+	t.log.Error(err, "client", client, "event", "put", "filename", filename)
 
 	return err
 }

@@ -4,11 +4,13 @@ package ipxe
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"reflect"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/imdario/mergo"
+	"github.com/pin/tftp"
 	"golang.org/x/sync/errgroup"
 	"inet.af/netaddr"
 )
@@ -59,22 +61,48 @@ func (c Config) Serve(ctx context.Context) error {
 		return err
 	}
 
+	t := &HandleTFTP{log: c.Log}
+	st := tftp.NewServer(t.ReadHandler, t.WriteHandler)
+	st.SetTimeout(c.TFTP.Timeout)
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
-		if err := serveTFTP(ctx, c.Log, c.TFTP.Addr, c.TFTP.Timeout); err != nil {
+		c.Log.Info("serving TFTP", "addr", c.TFTP.Addr, "timeout", c.TFTP.Timeout)
+		if err := ListenAndServeTFTP(ctx, c.TFTP.Addr, st); err != nil {
 			return fmt.Errorf("tftp serve error: %w", err)
 		}
 		return nil
 	})
 
+	router := http.NewServeMux()
+	s := HandleHTTP{log: c.Log}
+	router.HandleFunc("/", s.Handler)
+
+	srv := &http.Server{
+		Handler: router,
+	}
 	g.Go(func() error {
-		if err := ListenAndServe(ctx, c.Log, c.HTTP.Addr, c.HTTP.Timeout); err != nil {
+		c.Log.Info("serving HTTP", "addr", c.HTTP.Addr, "timeout", c.HTTP.Timeout)
+		if err := ListenAndServeHTTP(ctx, c.HTTP.Addr, srv); err != nil {
 			return fmt.Errorf("http serve error: %w", err)
 		}
 		return nil
 	})
 
-	return g.Wait()
+	errChan := make(chan error)
+	go func() {
+		errChan <- g.Wait()
+	}()
+
+	select {
+	case <-ctx.Done():
+		c.Log.Info("shutting down")
+		st.Shutdown()
+		err = srv.Shutdown(ctx)
+	case e := <-errChan:
+		err = e
+	}
+
+	return err
 }
 
 func (l logger) Transformer(typ reflect.Type) func(dst, src reflect.Value) error {

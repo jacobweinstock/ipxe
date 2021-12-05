@@ -9,7 +9,7 @@ function download_ipxe_repo() {
     local sha_or_tag="$1"
     if [ ! -f "ipxe-${sha_or_tag}.tar.gz" ]; then
         echo "downloading"
-        curl -fLo ipxe-"${sha_or_tag}".tar.gz https://github.com/ipxe/ipxe/archive/${sha_or_tag}.tar.gz
+        curl -fLo ipxe-"${sha_or_tag}".tar.gz https://github.com/ipxe/ipxe/archive/"${sha_or_tag}".tar.gz
     else
         echo "already downloaded"
     fi
@@ -43,7 +43,7 @@ function build_ipxe() {
     if [ "${run_in_docker}" = true ]; then
         if [ ! -f "${ipxe_dir}/src/${ipxe_bin}" ]; then
             echo "running in docker"
-            docker run -it --rm -v ${PWD}:/code -w /code nixos/nix nix-shell "${nix_shell}" --run "${env_opts} make -C ${ipxe_dir}/src EMBED=${embed_path} ${ipxe_bin}"
+            docker run -it --rm -v "${PWD}":/code -w /code nixos/nix nix-shell "${nix_shell}" --run "${env_opts} make -C ${ipxe_dir}/src EMBED=${embed_path} ${ipxe_bin}"
         fi
     else
         echo "running locally"
@@ -148,19 +148,27 @@ function hasUname() {
 
 # main function orchestrating a full ipxe compile.
 function main() {
-    local bin_path="$(echo $1 | xargs)"
-    local ipxe_sha_or_tag="$(echo $2 | xargs)"
-    local ipxe_build_in_docker="$(echo $3 | xargs)"
-    local final_path="$(echo $4 | xargs)"
-    local nix_shell="$(echo $5 | xargs)"
-    local env_opts="$(echo $6 | xargs)"
-    local embed_path="$(echo $7 | xargs)"
+    local bin_path
+    bin_path=$(echo "${1}" | xargs)
+    local ipxe_sha_or_tag
+    ipxe_sha_or_tag=$(echo "${2}" | xargs)
+    local ipxe_build_in_docker
+    ipxe_build_in_docker=$(echo "${3}" | xargs)
+    local final_path
+    final_path=$(echo "${4}" | xargs)
+    local nix_shell
+    nix_shell=$(echo "${5}" | xargs)
+    local env_opts
+    env_opts=$(echo "${6}" | xargs)
+    local embed_path
+    embed_path=$(echo "${7}" | xargs)
 
     # check for prerequisites
     hasType
     hasNixShell
     hasUname
-    local OS_TEST=$(uname | tr '[:upper:]' '[:lower:]')
+    local OS_TEST
+    OS_TEST=$(uname | tr '[:upper:]' '[:lower:]')
     if [[ "${OS_TEST}" != *"linux"* ]]; then
         hasDocker
     fi
