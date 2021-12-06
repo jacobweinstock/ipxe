@@ -3,6 +3,7 @@ package ipxe
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -21,8 +22,6 @@ type Config struct {
 	TFTP TFTP
 	// HTTP holds the details for the HTTP server.
 	HTTP HTTP
-	// MACPrefix indicates whether to expect request URI's to be prefixed with MAC address or not
-	MACPrefix bool
 	// Log is the logger to use.
 	Log logr.Logger
 }
@@ -51,10 +50,9 @@ type logger logr.Logger
 // See binary/binary.go for the iPXE files that are served.
 func (c Config) Serve(ctx context.Context) error {
 	defaults := Config{
-		TFTP:      TFTP{Addr: netaddr.IPPortFrom(netaddr.IPv4(0, 0, 0, 0), 69), Timeout: 5 * time.Second},
-		HTTP:      HTTP{Addr: netaddr.IPPortFrom(netaddr.IPv4(0, 0, 0, 0), 8080), Timeout: 5 * time.Second},
-		MACPrefix: true,
-		Log:       logr.Discard(),
+		TFTP: TFTP{Addr: netaddr.IPPortFrom(netaddr.IPv4(0, 0, 0, 0), 69), Timeout: 5 * time.Second},
+		HTTP: HTTP{Addr: netaddr.IPPortFrom(netaddr.IPv4(0, 0, 0, 0), 8080), Timeout: 5 * time.Second},
+		Log:  logr.Discard(),
 	}
 	err := mergo.Merge(&c, defaults, mergo.WithTransformers(ipport{}), mergo.WithTransformers(logger{}))
 	if err != nil {
@@ -65,12 +63,12 @@ func (c Config) Serve(ctx context.Context) error {
 	st := tftp.NewServer(t.ReadHandler, t.WriteHandler)
 	st.SetTimeout(c.TFTP.Timeout)
 	g, ctx := errgroup.WithContext(ctx)
-	var tftpServerErr error
+	var tftpErr error
 	g.Go(func() error {
 		c.Log.Info("serving TFTP", "addr", c.TFTP.Addr, "timeout", c.TFTP.Timeout)
 		if err := ListenAndServeTFTP(ctx, c.TFTP.Addr, st); err != nil {
-			tftpServerErr = fmt.Errorf("tftp serve error: %w", err)
-			return tftpServerErr
+			tftpErr = fmt.Errorf("tftp serve error: %w", err)
+			return tftpErr
 		}
 		return nil
 	})
@@ -83,12 +81,12 @@ func (c Config) Serve(ctx context.Context) error {
 		Handler: router,
 	}
 
-	var httpServerErr error
+	var httpErr error
 	g.Go(func() error {
 		c.Log.Info("serving HTTP", "addr", c.HTTP.Addr, "timeout", c.HTTP.Timeout)
-		if err := ListenAndServeHTTP(ctx, c.HTTP.Addr, srv); err != nil {
-			httpServerErr = fmt.Errorf("http serve error: %w", err)
-			return httpServerErr
+		if err := ListenAndServeHTTP(ctx, c.HTTP.Addr, srv); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			httpErr = fmt.Errorf("http serve error: %w", err)
+			return httpErr
 		}
 		return nil
 	})
@@ -98,14 +96,14 @@ func (c Config) Serve(ctx context.Context) error {
 	<-ctx.Done()
 
 	// Don't shutdown if the TFTP server failed, this will cause an immediate program exit without a stacktrace.
-	if tftpServerErr == nil {
+	if tftpErr == nil {
 		st.Shutdown()
 	}
 	// Don't shutdown if the HTTP server failed, this will cause an immediate program exit without a stacktrace.
-	if httpServerErr == nil {
+	if httpErr == nil {
 		_ = srv.Shutdown(ctx)
 	}
-	c.Log.Info("shutting down", "msg", ctx.Err(), "tftp", tftpServerErr, "http", httpServerErr)
+	c.Log.Info("shutting down")
 
 	return g.Wait()
 }
