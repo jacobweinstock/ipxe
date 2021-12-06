@@ -1,6 +1,10 @@
 ---
 extends: default
 
+ignore: |
+  upstream-*
+  ipxe-*
+
 rules:
   braces:
     max-spaces-inside: 1

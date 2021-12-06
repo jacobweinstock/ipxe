@@ -65,10 +65,12 @@ func (c Config) Serve(ctx context.Context) error {
 	st := tftp.NewServer(t.ReadHandler, t.WriteHandler)
 	st.SetTimeout(c.TFTP.Timeout)
 	g, ctx := errgroup.WithContext(ctx)
+	var tftpServerErr error
 	g.Go(func() error {
 		c.Log.Info("serving TFTP", "addr", c.TFTP.Addr, "timeout", c.TFTP.Timeout)
 		if err := ListenAndServeTFTP(ctx, c.TFTP.Addr, st); err != nil {
-			return fmt.Errorf("tftp serve error: %w", err)
+			tftpServerErr = fmt.Errorf("tftp serve error: %w", err)
+			return tftpServerErr
 		}
 		return nil
 	})
@@ -80,29 +82,32 @@ func (c Config) Serve(ctx context.Context) error {
 	srv := &http.Server{
 		Handler: router,
 	}
+
+	var httpServerErr error
 	g.Go(func() error {
 		c.Log.Info("serving HTTP", "addr", c.HTTP.Addr, "timeout", c.HTTP.Timeout)
 		if err := ListenAndServeHTTP(ctx, c.HTTP.Addr, srv); err != nil {
-			return fmt.Errorf("http serve error: %w", err)
+			httpServerErr = fmt.Errorf("http serve error: %w", err)
+			return httpServerErr
 		}
 		return nil
 	})
 
-	errChan := make(chan error)
-	go func() {
-		errChan <- g.Wait()
-	}()
+	// errgroup.WithContext: The derived Context is canceled the first time a function
+	// passed to Go returns a non-nil error or the first time Wait returns, whichever occurs first.
+	<-ctx.Done()
 
-	select {
-	case <-ctx.Done():
-		c.Log.Info("shutting down")
+	// Don't shutdown if the TFTP server failed, this will cause an immediate program exit without a stacktrace.
+	if tftpServerErr == nil {
 		st.Shutdown()
-		err = srv.Shutdown(ctx)
-	case e := <-errChan:
-		err = e
 	}
+	// Don't shutdown if the HTTP server failed, this will cause an immediate program exit without a stacktrace.
+	if httpServerErr == nil {
+		_ = srv.Shutdown(ctx)
+	}
+	c.Log.Info("shutting down", "msg", ctx.Err(), "tftp", tftpServerErr, "http", httpServerErr)
 
-	return err
+	return g.Wait()
 }
 
 func (l logger) Transformer(typ reflect.Type) func(dst, src reflect.Value) error {
