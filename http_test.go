@@ -12,7 +12,6 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jacobweinstock/ipxe/binary"
 	"inet.af/netaddr"
 )
@@ -124,8 +123,7 @@ func TestHandleHTTP_Handler(t *testing.T) {
 			}
 
 			defer resp.Body.Close()
-			ignoreList := []string{"Status", "Body", "Proto", "ProtoMajor", "ProtoMinor", "Header", "ContentLength", "TransferEncoding", "Trailer", "Request", "TLS"}
-			if diff := cmp.Diff(resp, tt.want, cmpopts.IgnoreUnexported(http.Response{}), cmpopts.IgnoreFields(http.Response{}, ignoreList...)); diff != "" {
+			if diff := cmp.Diff(resp.StatusCode, tt.want.StatusCode); diff != "" {
 				t.Fatalf(diff)
 			}
 			if tt.want.Body != nil {
