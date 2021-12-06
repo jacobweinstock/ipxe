@@ -22,10 +22,12 @@ import (
 	"inet.af/netaddr"
 )
 
+// HandleTFTP is the struct that implements the TFTP read and write function handlers.
 type HandleTFTP struct {
-	log logr.Logger
+	Log logr.Logger
 }
 
+// ListenAndServeTFTP sets up the listener on the given address and serves TFTP requests.
 func ListenAndServeTFTP(ctx context.Context, addr netaddr.IPPort, s *tftp.Server) error {
 	a, err := net.ResolveUDPAddr("udp", addr.String())
 	if err != nil {
@@ -38,11 +40,12 @@ func ListenAndServeTFTP(ctx context.Context, addr netaddr.IPPort, s *tftp.Server
 	return ServeTFTP(ctx, conn, s)
 }
 
-// Serve listens on the given address and serves TFTP requests.
+// ServeTFTP serves TFTP requests using the given conn and server.
 func ServeTFTP(_ context.Context, conn net.PacketConn, s *tftp.Server) error {
 	return s.Serve(conn)
 }
 
+// ReadHandler handlers TFTP GET requests.
 func (t HandleTFTP) ReadHandler(filename string, rf io.ReaderFrom) error {
 	client := net.UDPAddr{}
 	if rpi, ok := rf.(tftp.OutgoingTransfer); ok {
@@ -51,7 +54,7 @@ func (t HandleTFTP) ReadHandler(filename string, rf io.ReaderFrom) error {
 
 	full := filename
 	filename = path.Base(filename)
-	l := t.log.WithValues("event", "get", "filename", filename, "uri", full, "client", client)
+	l := t.Log.WithValues("event", "get", "filename", filename, "uri", full, "client", client)
 
 	// clients can send traceparent over TFTP by appending the traceparent string
 	// to the end of the filename they really want
@@ -97,13 +100,14 @@ func (t HandleTFTP) ReadHandler(filename string, rf io.ReaderFrom) error {
 	return nil
 }
 
+// WriteHandler handles TFTP PUT requests. It will always return an error. This library does not support PUT.
 func (t HandleTFTP) WriteHandler(filename string, wt io.WriterTo) error {
 	err := errors.Wrap(os.ErrPermission, "access_violation")
 	client := net.UDPAddr{}
 	if rpi, ok := wt.(tftp.OutgoingTransfer); ok {
 		client = rpi.RemoteAddr()
 	}
-	t.log.Error(err, "client", client, "event", "put", "filename", filename)
+	t.Log.Error(err, "client", client, "event", "put", "filename", filename)
 
 	return err
 }

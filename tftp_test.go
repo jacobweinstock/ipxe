@@ -17,7 +17,7 @@ import (
 )
 
 func TestListenAndServeTFTP(t *testing.T) {
-	ht := &HandleTFTP{log: logr.Discard()}
+	ht := &HandleTFTP{Log: logr.Discard()}
 	srv := tftp.NewServer(ht.ReadHandler, ht.WriteHandler)
 	type args struct {
 		ctx  context.Context
@@ -69,7 +69,7 @@ func TestListenAndServeTFTP(t *testing.T) {
 }
 
 func TestHandlerTFTP_ReadHandler(t *testing.T) {
-	ht := &HandleTFTP{log: logr.Discard()}
+	ht := &HandleTFTP{Log: logr.Discard()}
 	rf := &fakeReaderFrom{
 		addr:    net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 9999},
 		content: make([]byte, len(binary.Files["snp.efi"])),
@@ -84,7 +84,7 @@ func TestHandlerTFTP_ReadHandler(t *testing.T) {
 }
 
 func TestHandlerTFTP_WriteHandler(t *testing.T) {
-	ht := &HandleTFTP{log: logr.Discard()}
+	ht := &HandleTFTP{Log: logr.Discard()}
 	rf := &fakeReaderFrom{addr: net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 9999}}
 	err := ht.WriteHandler("snp.efi", rf)
 	if !errors.Is(err, os.ErrPermission) {

@@ -59,7 +59,7 @@ func (c Config) Serve(ctx context.Context) error {
 		return err
 	}
 
-	t := &HandleTFTP{log: c.Log}
+	t := &HandleTFTP{Log: c.Log}
 	st := tftp.NewServer(t.ReadHandler, t.WriteHandler)
 	st.SetTimeout(c.TFTP.Timeout)
 	g, ctx := errgroup.WithContext(ctx)
@@ -74,7 +74,7 @@ func (c Config) Serve(ctx context.Context) error {
 	})
 
 	router := http.NewServeMux()
-	s := HandleHTTP{log: c.Log}
+	s := HandleHTTP{Log: c.Log}
 	router.HandleFunc("/", s.Handler)
 
 	srv := &http.Server{
