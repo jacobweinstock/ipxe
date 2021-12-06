@@ -18,6 +18,7 @@ import (
 
 const rootCLI = "ipxe"
 
+// Config is the configuration for the ipxe CLI.
 type Config struct {
 	TFTPAddr string
 	HTTPAddr string
@@ -25,6 +26,7 @@ type Config struct {
 	Log      logr.Logger
 }
 
+// IpxeBin returns the CLI command for the ipxe CLI app.
 func IpxeBin() *ffcli.Command {
 	cfg := &Config{}
 	fs := flag.NewFlagSet(rootCLI, flag.ExitOnError)
@@ -39,12 +41,14 @@ func IpxeBin() *ffcli.Command {
 	}
 }
 
+// RegisterFlags registers the flags for the ipxe CLI app.
 func RegisterFlags(cfg *Config, fs *flag.FlagSet) {
 	fs.StringVar(&cfg.TFTPAddr, "tftp-addr", "0.0.0.0:69", "IP and port to listen on for TFTP.")
 	fs.StringVar(&cfg.HTTPAddr, "http-addr", "0.0.0.0:8080", "IP and port to listen on for HTTP.")
 	fs.StringVar(&cfg.LogLevel, "loglevel", "info", "log level (optional)")
 }
 
+// Exec is the main entry point for the ipxe CLI app.
 func (f *Config) Exec(ctx context.Context, _ []string) error {
 	defaults := Config{
 		TFTPAddr: "0.0.0.0:69",

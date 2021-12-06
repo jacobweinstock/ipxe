@@ -19,7 +19,7 @@ type HandleHTTP struct {
 	Log logr.Logger
 }
 
-// ListenAndServeHTTP is a patterned after http.ListenAndServer.
+// ListenAndServeHTTP is a patterned after http.ListenAndServe.
 // It listens on the TCP network address srv.Addr and then
 // calls ServeHTTP to handle requests on incoming connections.
 //
