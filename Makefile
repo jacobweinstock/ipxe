@@ -15,6 +15,11 @@ run: ## run service
 test: ## run unit tests
 	go test -v -covermode=count ./...
 
+.PHONY: cover
+cover: ## Run unit tests with coverage report
+	go test -coverprofile=coverage.out ./... || true
+	go tool cover -func=coverage.out
+
 .PHONY: darwin
 darwin: ## compile for darwin
 	GOOS=darwin ${BUILD_ARGS} -o bin/${BINARY}-darwin-amd64 cmd/ipxe/main.go
