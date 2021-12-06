@@ -2,7 +2,6 @@ package ipxe
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"path"
@@ -41,23 +40,16 @@ func (s HandleHTTP) Handler(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	host, _, err := net.SplitHostPort(req.RemoteAddr)
-	if err != nil {
-		s.log.Error(fmt.Errorf("%s: not allowed", req.RemoteAddr), "could not get your IP address")
-	}
-
+	host, port, _ := net.SplitHostPort(req.RemoteAddr)
+	s.log = s.log.WithValues("host", host, "port", port)
 	m := path.Dir(req.URL.Path)
 	if strings.HasPrefix(m, "/") {
 		m = trimFirstRune(path.Dir(req.URL.Path))
 	}
-	mac, err := net.ParseMAC(m)
-	if err != nil {
-		s.log.Info("could not parse mac from request URI", "err", err.Error())
-	}
-	s.log = s.log.WithValues("mac", mac, "host", host)
+	mac, _ := net.ParseMAC(m)
+	s.log = s.log.WithValues("mac", mac)
 
 	got := filepath.Base(req.URL.Path)
-
 	file, found := binary.Files[got]
 	if !found {
 		s.log.Info("could not find file", "file", got)
@@ -71,4 +63,5 @@ func (s HandleHTTP) Handler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	s.log.Info("file served", "bytes sent", b, "content size", len(file), "file", got)
+	w.WriteHeader(http.StatusOK)
 }

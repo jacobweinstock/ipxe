@@ -78,6 +78,7 @@ function create_branch() {
     fi
 }
 
+# shellcheck disable=SC2086
 # commit changes to git
 function commit_changes() {
     local files="${1:-script/sha512sum.txt snp.efi ipxe.efi undionly.kpxe}"
@@ -85,7 +86,7 @@ function commit_changes() {
 
     # commit changes
     echo "Committing changes"
-    if ! git add "${files}"; then
+    if ! git add ${files}; then
         echo "Failed to add changes" 1>&2
         exit 1
     fi

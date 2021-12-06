@@ -7,6 +7,10 @@ IPXE_NIX_SHELL:=binary/script/shell.nix
 help: ## show this help message
 	@grep -E '^[a-zA-Z_-]+.*:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[32m%-30s\033[0m %s\n", $$1, $$2}'
 
+.PHONY: run
+run: ## run service
+	go run cmd/ipxe/main.go
+
 .PHONY: test
 test: ## run unit tests
 	go test -v -covermode=count ./...
