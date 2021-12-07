@@ -1,5 +1,7 @@
+// Package binary holds the embedded ipxe binaries.
 package binary
 
+// embed lib for embedding the iPXE binaries.
 import _ "embed"
 
 // IpxeEFI is the UEFI iPXE binary for x86 architectures.

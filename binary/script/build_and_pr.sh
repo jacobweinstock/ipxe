@@ -2,6 +2,33 @@
 
 set -uxo pipefail
 
+# tracked_files defines the files that will cause the iPXE binaries to be rebuilt.
+tracked_files=(
+    "./script/ipxe-customizations/console.h"
+    "./script/ipxe-customizations/isa.h"
+    "./script/ipxe-customizations/colour.h"
+    "./script/ipxe-customizations/general.efi.h"
+    "./script/ipxe-customizations/general.undionly.h"
+    "./script/ipxe-customizations/common.h"
+    "./script/embed.ipxe"
+    "./script/ipxe.commit"
+    "./ipxe.efi"
+    "./snp.efi"
+    "./undionly.kpxe"
+)
+
+# binaries defines the files that will be built if any tracked_files changes are detected.
+binaries=(
+    "script/sha512sum.txt"
+    "snp.efi"
+    "ipxe.efi"
+    "undionly.kpxe"
+)
+
+git_email="github-actions[bot]@users.noreply.github.com"
+git_name="github-actions[bot]"
+repo="jacobweinstock/ipxe"
+
 # check for the GITHUB_TOKEN environment variable
 function check_github_token() {
   if [ -z "${GITHUB_TOKEN}" ]; then
@@ -45,13 +72,10 @@ function build_iPXE() {
 function create_checksums() {
     local location="${1:-sha512sum.txt}"
 
-    find . -type f \( -name '*.h' \
-    -o -name 'snp.efi' \
-    -o -name 'ipxe.efi' \
-    -o -name 'undionly.kpxe' \
-    -o -name 'embed.ipxe' \
-    -o -name 'ipxe.commit' \
-    \) -exec sha512sum {} + > "${location}"
+    if ! sha512sum "${tracked_files[@]}" > "${location}"; then
+        echo "Failed to create checksums file" 1>&2
+        exit 1
+    fi
 }
 
 # configure git client
@@ -59,8 +83,14 @@ function configure_git() {
     local email="${1:-github-actions[bot]@users.noreply.github.com}"
     local name="${2:-github-actions[bot]}"
 
-    git config --local user.email "${email}"
-    git config --local user.name "${name}"
+    if ! git config --local user.email "${email}"; then
+        echo "Failed to configure git user.email" 1>&2
+        exit 1
+    fi
+    if ! git config --local user.name "${name}"; then
+        echo "Failed to configure git user.name" 1>&2
+        exit 1
+    fi
 }
 
 # create a new branch
@@ -128,8 +158,14 @@ function create_pull_request() {
 
 # clean_up undoes any changes made by the script
 function clean_up() {
-    git config --local --unset user.email
-    git config --local --unset user.name
+    if ! git config --local --unset user.email; then
+        echo "Failed to unset git user.email" 1>&2
+        exit 1
+    fi
+    if ! git config --local --unset user.name; then
+        echo "Failed to unset git user.name" 1>&2
+        exit 1
+    fi
 }
 
 function main() {
@@ -142,9 +178,9 @@ function main() {
     clean_iPXE
     build_iPXE
     create_checksums "${sha_file}"
-    configure_git "github-actions[bot]@users.noreply.github.com" "github-actions[bot]"
-    commit_changes "script/sha512sum.txt snp.efi ipxe.efi undionly.kpxe" "Updated iPXE binaries"
-    push_changes "${branch}" "jacobweinstock/ipxe" "github-actions[bot]" "${GITHUB_TOKEN}"
+    configure_git "${git_email}" "${git_name}"
+    commit_changes "${binaries[@]}" "Updated iPXE binaries"
+    push_changes "${branch}" "${repo}" "${git_name}" "${GITHUB_TOKEN}"
     create_pull_request "${branch}" "main" "Update iPXE binaries" "Automated iPXE binaries update."
     clean_up
 }
