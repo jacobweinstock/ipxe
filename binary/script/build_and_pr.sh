@@ -180,7 +180,7 @@ function main() {
     create_checksums "${sha_file}"
     configure_git "${git_email}" "${git_name}"
     # shellcheck disable=SC2068,SC2145
-    commit_changes \"${binaries[@]}\" "Updated iPXE binaries"
+    commit_changes "$(printf "%s " "${binaries[@]}"|xargs)" "Updated iPXE binaries"
     push_changes "${branch}" "${repo}" "${git_name}" "${GITHUB_TOKEN}"
     create_pull_request "${branch}" "main" "Update iPXE binaries" "Automated iPXE binaries update."
     clean_up
